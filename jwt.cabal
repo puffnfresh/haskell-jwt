@@ -9,6 +9,8 @@ license:             MIT
 license-file:        LICENSE
 author:              Stefan Saasen
 maintainer:          stefan@saasen.me
+homepage:            https://bitbucket.org/ssaasen/haskell-jwt
+bug-reports:         https://bitbucket.org/ssaasen/haskell-jwt/issues
 category:            Web
 build-type:          Simple
 cabal-version:       >=1.18
