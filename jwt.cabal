@@ -4,7 +4,7 @@
 name:                jwt
 version:             0.1.0
 synopsis:            JSON Web Token (JWT)
-description:         JSON Web Token (JWT) is a compact URL-safe means of representing claims to be transferred between two parties. Draft 16.
+description:         JSON Web Token (JWT) is a compact URL-safe means of representing claims to be transferred between two parties.
 license:             MIT
 license-file:        LICENSE
 author:              Stefan Saasen
@@ -41,6 +41,7 @@ library
                       --Werror
                       -fno-warn-unused-do-bind
                       -fno-warn-orphans
+                      -fno-warn-name-shadowing
 
 test-suite testsuite
   default-language:    Haskell2010

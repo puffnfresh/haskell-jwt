@@ -1,26 +1,49 @@
 {-# LANGUAGE RecordWildCards, OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE EmptyDataDecls, GADTs #-}
 
 -- TODO:
---   * there is currently no verification of time related information
---   * Only HMAC SHA256 is supported
---   * Registered claims are not validated
 --   * StringOrUri is not valdiated
 
--- | JSON Web Token used for Atlassian Connect
--- This is based on http://self-issued.info/docs/draft-ietf-oauth-json-web-token.html (Version 16)
--- but currently only implements the minimum required to work with the Atlassian Connect framework.
+{-|
+Description : JSON Web Token
+Maintainer  : stefan@saasen.me
+Stability   : experimental
+
+This implementation of JWT is based on <http://self-issued.info/docs/draft-ietf-oauth-json-web-token.html> (Version 16)
+but currently only implements the minimum required to work with the Atlassian Connect framework.
+
+Currently missing:
+
+   * Only HMAC SHA-256 algorithm is currently a supported signature algorithm
+
+   * There is currently no verification of time related information
+   ('exp', 'nbf', 'iat').
+
+   * Registered claims are not validated
+-}
 module Web.JWT (
+  -- * Encoding & Decoding JWTs
     decode
   , decodeAndVerify
   , encode
+
+  -- * Utility functions
   , tokenIssuer
   , secret
-  , Signature(..)
-  , JWT(..)
+  , claims
+  , header
+  , module Data.Default
+
+  -- * Types
+  , UnverifiedJWT
+  , VerifiedJWT
+  , Signature
+  , JWT
+  , JSON
   , Algorithm(..)
   , JWTClaimsSet(..)
-  , module Data.Default
+
 #ifdef TEST
   , IntDate(..)
   , JWTHeader(..)
@@ -49,18 +72,44 @@ import           Data.Aeson hiding          (decode, encode)
 import           Data.Scientific
 import           Data.Default
 
+
+type JSON = T.Text
+
+-- | The secret used for calculating the message signature using the given
+-- Algorithm.
 newtype Secret = Secret T.Text deriving (Eq, Show)
+
 newtype Signature = Signature T.Text deriving (Eq, Show)
 
-data JWT = UnverifiedJWT { header :: JWTHeader, claims :: JWTClaimsSet } |
-            VerifiedJWT JWTHeader JWTClaimsSet Signature deriving (Eq, Show)
+-- | JSON Web Token without signature verification
+data UnverifiedJWT
+
+-- | JSON Web Token that has been successfully verified
+data VerifiedJWT
+
+
+-- | The JSON Web Token
+data JWT r where
+   Unverified :: JWTHeader -> JWTClaimsSet -> JWT UnverifiedJWT
+   Verified   :: JWTHeader -> JWTClaimsSet -> Signature -> JWT VerifiedJWT
+
+
+-- | Extract the claims set from a JSON Web Token
+claims :: JWT r -> JWTClaimsSet
+claims (Unverified _ c) = c
+claims (Verified _ c _) = c
+
+-- | Extract the header from a JSON Web Token
+header :: JWT r -> JWTHeader
+header (Unverified h _) = h
+header (Verified h _ _) = h
 
 -- | A JSON numeric value representing the number of seconds from
 --   1970-01-01T0:0:0Z UTC until the specified UTC date/time.
 newtype IntDate = IntDate Integer deriving (Eq, Show)
 
-data Algorithm = HS256 -- HMAC SHA-256
-               | NONE
+data Algorithm = HS256 -- ^ HMAC SHA-256
+               | NONE  -- ^ No algorithm
                 deriving (Eq, Show)
 
 data JWTHeader = JWTHeader {
@@ -77,25 +126,25 @@ data JWTClaimsSet = JWTClaimsSet {
     -- Registered Claim Names
     -- http://self-issued.info/docs/draft-ietf-oauth-json-web-token.html#ClaimsContents
 
-    -- The iss (issuer) claim identifies the principal that issued the JWT.
+    -- | The iss (issuer) claim identifies the principal that issued the JWT.
     iss :: Maybe T.Text
 
-    -- The sub (subject) claim identifies the principal that is the subject of the JWT.
+    -- | The sub (subject) claim identifies the principal that is the subject of the JWT.
   , sub :: Maybe T.Text
 
-    -- The aud (audience) claim identifies the audiences that the JWT is intended for
+    -- | The aud (audience) claim identifies the audiences that the JWT is intended for
   , aud :: Maybe T.Text
 
-    -- The exp (expiration time) claim identifies the expiration time on or after which the JWT MUST NOT be accepted for processing. Its value MUST be a number containing an IntDate value.
+    -- | The exp (expiration time) claim identifies the expiration time on or after which the JWT MUST NOT be accepted for processing. Its value MUST be a number containing an IntDate value.
   , exp :: Maybe IntDate
 
-    -- The nbf (not before) claim identifies the time before which the JWT MUST NOT be accepted for processing.
+    -- | The nbf (not before) claim identifies the time before which the JWT MUST NOT be accepted for processing.
   , nbf :: Maybe IntDate
 
-    -- The iat (issued at) claim identifies the time at which the JWT was issued.
+    -- | The iat (issued at) claim identifies the time at which the JWT was issued.
   , iat :: Maybe IntDate
 
-    -- The jti (JWT ID) claim provides a unique identifier for the JWT.
+    -- | The jti (JWT ID) claim provides a unique identifier for the JWT.
   , jti :: Maybe T.Text
 
   , unregisteredClaims :: ClaimsMap
@@ -108,7 +157,7 @@ instance Default JWTClaimsSet where
 
 
 -- | Encode a claims set using the given secret
-encode :: Secret -> JWTClaimsSet -> T.Text
+encode :: Secret -> JWTClaimsSet -> JSON
 encode secret' claims = dotted [header, claim, signature]
     where claim     = encodeJWT claims
           header    = encodeJWT  def {
@@ -120,23 +169,25 @@ encode secret' claims = dotted [header, claim, signature]
           encodeJWT = base64Encode . TE.decodeUtf8 . JSON.encode
 
 -- | Decode a claims set without verifying the signature
-decode :: T.Text -> Maybe JWT
+decode :: JSON -> Maybe (JWT UnverifiedJWT)
 decode input = let (h:c:_) = T.splitOn "." input
                    header  = parseJWT h
                    claims  = parseJWT c
-               in UnverifiedJWT <$> header <*> claims
+               in Unverified <$> header <*> claims
 
-tokenIssuer :: T.Text -> Maybe T.Text
+
+-- | Try to extract the value for the issue claim field 'iss' from the web token in JSON form
+tokenIssuer :: JSON -> Maybe T.Text
 tokenIssuer = decode >=> fmap pure claims >=> iss
 
 -- | Decode a claims set and verify that the signature matches by using the supplied secret
-decodeAndVerify :: Secret -> T.Text -> Maybe JWT
+decodeAndVerify :: Secret -> T.Text -> Maybe (JWT VerifiedJWT)
 decodeAndVerify secret' input = do
         let (h:c:s:_) = T.splitOn "." input
         header <- parseJWT h
         claims <- parseJWT c
         let sign = if s == calculateMessageDigest h c then pure $ Signature s else mzero
-        VerifiedJWT <$> header <*> claims <*> sign
+        Verified <$> header <*> claims <*> sign
       where calculateMessageDigest header claims = calculateDigest HS256 secret' (dotted [header, claims])
 
 parseJWT :: FromJSON a => T.Text -> Maybe a

@@ -32,18 +32,18 @@ case_decodeJWT = do
     let input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
         mJwt = decode input
     True @=? isJust mJwt
-    let (Just (UnverifiedJWT header claims)) = mJwt
-    (Just HS256) @=? (alg header)
-    (Just "payload") @=? (Map.lookup "some" $ unregisteredClaims claims)
+    let (Just unverified) = mJwt
+    (Just HS256) @=? (alg $ header unverified)
+    (Just "payload") @=? (Map.lookup "some" $ unregisteredClaims $ claims unverified)
 
 case_decodeAndVerifyJWT = do
     -- Generated with ruby-jwt
     let input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
         mJwt = decodeAndVerify (secret "secret") input
     True @=? isJust mJwt
-    let (Just (VerifiedJWT header claims signature)) = mJwt
-    (Just HS256) @=? (alg header)
-    (Just "payload") @=? (Map.lookup "some" $ unregisteredClaims claims)
+    let (Just verified) = mJwt
+    (Just HS256) @=? (alg $ header verified)
+    (Just "payload") @=? (Map.lookup "some" $ unregisteredClaims $ claims verified)
 
 case_decodeAndVerifyJWTFailing = do
     -- Generated with ruby-jwt, modified to be invalid
@@ -59,8 +59,8 @@ case_encodeDecodeJWT = do
         key = secret "secret-key"
         mJwt = decode $ encode key cs
     True @=? (isJust mJwt)
-    let (Just (UnverifiedJWT header claims)) = mJwt
-    cs @=? claims
+    let (Just unverified) = mJwt
+    cs @=? claims unverified
 
 case_tokenIssuer = do
     let cs = def {
@@ -106,8 +106,8 @@ case_base64DecodeString = do
 
 prop_encode_decode_prop = f
     where f :: JWTClaimsSet -> Bool
-          f claims = let Just (UnverifiedJWT _ claimSet) = (decode $ encode (secret "secret") claims)
-                     in claimSet == claims
+          f claims' = let Just unverified = (decode $ encode (secret "secret") claims')
+                      in claims unverified == claims'
 
 
 instance Arbitrary JWTClaimsSet where
