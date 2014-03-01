@@ -52,11 +52,10 @@ module Web.JWT (
 #endif
 ) where
 
-import qualified Data.Text.Lazy             as T
-import qualified Data.Text                  as TS
-import qualified Data.Text.Lazy.Encoding    as TE
-import qualified Data.ByteString.Lazy.Char8 as B
-import qualified Data.ByteString.Char8      as BS
+import qualified Data.Text                  as T
+import qualified Data.Text.Encoding         as TE
+import qualified Data.ByteString.Char8      as B
+import qualified Data.ByteString.Lazy.Char8 as BL (toStrict, fromStrict)
 
 import qualified Data.Aeson                 as JSON
 import qualified Data.Map                   as Map
@@ -166,7 +165,7 @@ encode secret' claims = dotted [header, claim, signature]
                       }
           signature = calculateDigest HS256 secret' (dotted [header, claim])
           encodeJWT :: ToJSON a => a -> T.Text
-          encodeJWT = base64Encode . TE.decodeUtf8 . JSON.encode
+          encodeJWT = base64Encode . TE.decodeUtf8 . BL.toStrict . JSON.encode
 
 -- | Decode a claims set without verifying the signature
 decode :: JSON -> Maybe (JWT UnverifiedJWT)
@@ -191,7 +190,7 @@ decodeAndVerify secret' input = do
       where calculateMessageDigest header claims = calculateDigest HS256 secret' (dotted [header, claims])
 
 parseJWT :: FromJSON a => T.Text -> Maybe a
-parseJWT = JSON.decode . TE.encodeUtf8 . base64Decode
+parseJWT = JSON.decode . BL.fromStrict . TE.encodeUtf8 . base64Decode
 
 dotted :: [T.Text] -> T.Text
 dotted = T.intercalate "."
@@ -208,22 +207,20 @@ base64Decode = operateOnText BASE64.decodeLenient
 base64Encode :: T.Text -> T.Text
 base64Encode = removePaddingBase64Encoding . operateOnText BASE64.encode
 
-operateOnText :: (BS.ByteString -> BS.ByteString) -> T.Text -> T.Text
-operateOnText f = TE.decodeUtf8 . strictToLazy . f . lazyToStrictBS . TE.encodeUtf8
-    where strictToLazy = B.fromStrict
-          lazyToStrictBS = BS.concat . B.toChunks
+operateOnText :: (B.ByteString -> B.ByteString) -> T.Text -> T.Text
+operateOnText f = TE.decodeUtf8 . f . TE.encodeUtf8
 
 removePaddingBase64Encoding :: T.Text -> T.Text
 removePaddingBase64Encoding = T.dropWhileEnd (=='=')
 
 calculateDigest :: Algorithm -> Secret -> T.Text -> T.Text
-calculateDigest _ (Secret key) msg = base64Encode' $ HMAC.hmac SHA.hash 64 (toStrict key) (toStrict msg)
-    where toStrict = BS.concat . B.toChunks . TE.encodeUtf8
-          base64Encode' = removePaddingBase64Encoding . TE.decodeUtf8 . B.fromStrict . BASE64.encode
+calculateDigest _ (Secret key) msg =  base64Encode' $ HMAC.hmac SHA.hash 64 (bs key) (bs msg)
+    where bs = TE.encodeUtf8
+          base64Encode' = removePaddingBase64Encoding . TE.decodeUtf8 . BASE64.encode
 
 -- =================================================================================
 
-type ClaimsMap = Map.Map TS.Text Value
+type ClaimsMap = Map.Map T.Text Value
 
 fromHashMap :: Object -> ClaimsMap
 fromHashMap = Map.fromList . StrictMap.toList
@@ -280,8 +277,8 @@ instance FromJSON IntDate where
     parseJSON _          = mzero
 
 instance ToJSON Algorithm where
-    toJSON HS256 = String ("HS256"::TS.Text)
-    toJSON NONE  = String ("NONE"::TS.Text)
+    toJSON HS256 = String ("HS256"::T.Text)
+    toJSON NONE  = String ("NONE"::T.Text)
 
 instance FromJSON Algorithm where
     parseJSON (String "HS256") = return HS256
