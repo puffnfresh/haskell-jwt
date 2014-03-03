@@ -19,13 +19,14 @@ description:
     .
     To get started, see the documentation for the "Web.JWT" module.
 
+extra-source-files:
+    changelog
+    README.md
+
 source-repository head
     type: git
     location: https://ssaasen@bitbucket.org/ssaasen/haskell-jwt.git
 
-extra-source-files:
-    changelog
-    README.md
 
 library
   exposed-modules:     Web.JWT
