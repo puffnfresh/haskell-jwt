@@ -1,19 +1,23 @@
-{-# LANGUAGE RecordWildCards, OverloadedStrings #-}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE EmptyDataDecls, GADTs #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE EmptyDataDecls    #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE StandaloneDeriving   #-}
 
 -- TODO:
 --   * StringOrUri is not valdiated
 
 {-|
-Description : JSON Web Token
-Maintainer  : stefan@saasen.me
-Stability   : experimental
+Module:      Web.JWT
+License:     MIT
+Maintainer:  Stefan Saasen <stefan@saasen.me>
+Stability:   experimental
 
 This implementation of JWT is based on <http://self-issued.info/docs/draft-ietf-oauth-json-web-token.html> (Version 16)
 but currently only implements the minimum required to work with the Atlassian Connect framework.
 
-Currently missing:
+Known limitations:
 
    * Only HMAC SHA-256 algorithm is currently a supported signature algorithm
 
@@ -22,60 +26,63 @@ Currently missing:
 
    * Registered claims are not validated
 -}
-module Web.JWT (
-  -- * Encoding & Decoding JWTs
-    decode
-  , decodeAndVerify
-  , encode
+module Web.JWT
+    (
+    -- * Encoding & Decoding JWTs
+      decode
+    , decodeAndVerifySignature
+    , encodeSigned
+    , encodeUnsigned
 
-  -- * Utility functions
-  , tokenIssuer
-  , secret
-  , claims
-  , header
-  , module Data.Default
+    -- * Utility functions
+    , tokenIssuer
+    , secret
+    , claims
+    , header
+    , signature
+    , module Data.Default
 
-  -- * Types
-  , UnverifiedJWT
-  , VerifiedJWT
-  , Signature
-  , JWT
-  , JSON
-  , Algorithm(..)
-  , JWTClaimsSet(..)
+    -- * Types
+    , UnverifiedJWT
+    , VerifiedJWT
+    , Signature
+    , Secret
+    , JWT
+    , JSON
+    , Algorithm(..)
+    , JWTClaimsSet(..)
 
 #ifdef TEST
-  , IntDate(..)
-  , JWTHeader(..)
-  , base64Encode
-  , base64Decode
+    , IntDate(..)
+    , JWTHeader(..)
+    , base64Encode
+    , base64Decode
 #endif
-) where
+    ) where
 
+import qualified Data.ByteString.Char8      as B
+import qualified Data.ByteString.Lazy.Char8 as BL (fromStrict, toStrict)
 import qualified Data.Text                  as T
 import qualified Data.Text.Encoding         as TE
-import qualified Data.ByteString.Char8      as B
-import qualified Data.ByteString.Lazy.Char8 as BL (toStrict, fromStrict)
 
-import qualified Data.Aeson                 as JSON
-import qualified Data.Map                   as Map
-import qualified Data.HashMap.Strict        as StrictMap
-import qualified Data.ByteString.Base64.URL as BASE64
-import qualified Crypto.Hash.SHA256         as SHA
-import qualified Crypto.MAC.HMAC            as HMAC
 import           Control.Applicative
 import           Control.Monad
-import           Data.Maybe
-import           Prelude hiding             (exp)
-import           Data.Aeson hiding          (decode, encode)
-import           Data.Scientific
+import qualified Crypto.Hash.SHA256         as SHA
+import qualified Crypto.MAC.HMAC            as HMAC
+import           Data.Aeson                 hiding (decode, encode)
+import qualified Data.Aeson                 as JSON
+import qualified Data.ByteString.Base64.URL as BASE64
 import           Data.Default
+import qualified Data.HashMap.Strict        as StrictMap
+import qualified Data.Map                   as Map
+import           Data.Maybe
+import           Data.Scientific
+import           Prelude                    hiding (exp)
 
 
 type JSON = T.Text
 
--- | The secret used for calculating the message signature using the given
--- Algorithm.
+-- | The secret used for calculating the message signature
 newtype Secret = Secret T.Text deriving (Eq, Show)
 
 newtype Signature = Signature T.Text deriving (Eq, Show)
@@ -92,6 +99,7 @@ data JWT r where
    Unverified :: JWTHeader -> JWTClaimsSet -> JWT UnverifiedJWT
    Verified   :: JWTHeader -> JWTClaimsSet -> Signature -> JWT VerifiedJWT
 
+deriving instance Show (JWT r)
 
 -- | Extract the claims set from a JSON Web Token
 claims :: JWT r -> JWTClaimsSet
@@ -103,14 +111,19 @@ header :: JWT r -> JWTHeader
 header (Unverified h _) = h
 header (Verified h _ _) = h
 
+-- | Extract the signature from a verified JSON Web Token
+signature :: JWT r -> Maybe Signature
+signature (Unverified _ _) = Nothing
+signature (Verified _ _ s) = Just s
+
 -- | A JSON numeric value representing the number of seconds from
 --   1970-01-01T0:0:0Z UTC until the specified UTC date/time.
 newtype IntDate = IntDate Integer deriving (Eq, Show)
 
-data Algorithm = HS256 -- ^ HMAC SHA-256
-               | NONE  -- ^ No algorithm
-                deriving (Eq, Show)
+data Algorithm = HS256 -- ^ HMAC using SHA-256 hash algorithm
+                 deriving (Eq, Show)
 
+-- | JWT Header, describes the cryptographic operations applied to the JWT
 data JWTHeader = JWTHeader {
     typ :: Maybe T.Text
   , cty :: Maybe T.Text
@@ -126,25 +139,25 @@ data JWTClaimsSet = JWTClaimsSet {
     -- http://self-issued.info/docs/draft-ietf-oauth-json-web-token.html#ClaimsContents
 
     -- | The iss (issuer) claim identifies the principal that issued the JWT.
-    iss :: Maybe T.Text
+    iss                :: Maybe T.Text
 
     -- | The sub (subject) claim identifies the principal that is the subject of the JWT.
-  , sub :: Maybe T.Text
+  , sub                :: Maybe T.Text
 
     -- | The aud (audience) claim identifies the audiences that the JWT is intended for
-  , aud :: Maybe T.Text
+  , aud                :: Maybe T.Text
 
     -- | The exp (expiration time) claim identifies the expiration time on or after which the JWT MUST NOT be accepted for processing. Its value MUST be a number containing an IntDate value.
-  , exp :: Maybe IntDate
+  , exp                :: Maybe IntDate
 
     -- | The nbf (not before) claim identifies the time before which the JWT MUST NOT be accepted for processing.
-  , nbf :: Maybe IntDate
+  , nbf                :: Maybe IntDate
 
     -- | The iat (issued at) claim identifies the time at which the JWT was issued.
-  , iat :: Maybe IntDate
+  , iat                :: Maybe IntDate
 
     -- | The jti (JWT ID) claim provides a unique identifier for the JWT.
-  , jti :: Maybe T.Text
+  , jti                :: Maybe T.Text
 
   , unregisteredClaims :: ClaimsMap
 
@@ -156,38 +169,138 @@ instance Default JWTClaimsSet where
 
 
 -- | Encode a claims set using the given secret
-encode :: Secret -> JWTClaimsSet -> JSON
-encode secret' claims = dotted [header, claim, signature]
+--
+-- > {-# LANGUAGE OverloadedStrings #-}
+-- >
+-- > let cs = def {  -- def returns a default JWTClaimsSet
+-- >     iss = Just "Foo"
+-- >   , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
+-- > }
+-- >     key = secret "secret-key"
+-- >     jwt = encodeSigned HS256 key cs
+--
+-- This yields:
+--
+-- > >>> jwt
+-- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.vHQHuG3ujbnBUmEp-fSUtYxk27rLiP2hrNhxpyWhb2E"
+encodeSigned :: Algorithm -> Secret -> JWTClaimsSet -> JSON
+encodeSigned algo secret claims = dotted [header, claim, signature]
     where claim     = encodeJWT claims
-          header    = encodeJWT  def {
+          header    = encodeJWT def {
+                        typ = Just "JWT"
+                      , alg = Just algo
+                      }
+          signature = calculateDigest algo secret (dotted [header, claim])
+
+-- | Encode a claims set without signing it
+--
+-- > {-# LANGUAGE OverloadedStrings #-}
+-- >
+-- > let cs = def {  -- def returns a default JWTClaimsSet
+-- >     iss = Just "Foo"
+-- >   , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
+-- > }
+-- >     jwt = encodeUnsigned cs
+--
+-- This yields:
+--
+-- > >>> jwt
+-- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0."
+encodeUnsigned :: JWTClaimsSet -> JSON
+encodeUnsigned claims = dotted [header, claim, ""]
+    where claim     = encodeJWT claims
+          header    = encodeJWT def {
                         typ = Just "JWT"
                       , alg = Just HS256
                       }
-          signature = calculateDigest HS256 secret' (dotted [header, claim])
-          encodeJWT :: ToJSON a => a -> T.Text
-          encodeJWT = base64Encode . TE.decodeUtf8 . BL.toStrict . JSON.encode
 
--- | Decode a claims set without verifying the signature
+
+-- | Decode a claims set without verifying the signature. This is useful if
+-- information from the claim set is required in order to verify the claim
+-- (e.g. the secret needs to be retrieved based on unverified information
+-- from the claims set).
+--
+-- > import qualified Data.Text as T
+-- > let input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
+-- >     mJwt = decode input
+-- >     mHeader = fmap header mJwt
+-- >     mClaims = fmap claims mJwt
+-- >     mSignature = join $ fmap signature mJwt
+--
+-- This yields:
+--
+-- > >>> mHeader
+-- > Just (JWTHeader {typ = Just "JWT", cty = Nothing, alg = Just HS256})
+--
+-- and
+--
+-- > >>> mClaims
+-- > Just (JWTClaimsSet {iss = Nothing, sub = Nothing, aud = Nothing,
+-- >     exp = Nothing, nbf = Nothing, iat = Nothing, jti = Nothing,
+-- >     unregisteredClaims = fromList [("some",String "payload")]})
+--
+-- and
+--
+-- > >>> mSignature
+-- > Nothing
 decode :: JSON -> Maybe (JWT UnverifiedJWT)
 decode input = let (h:c:_) = T.splitOn "." input
-                   header  = parseJWT h
-                   claims  = parseJWT c
-               in Unverified <$> header <*> claims
+                   header' = parseJWT h
+                   claims' = parseJWT c
+               in Unverified <$> header' <*> claims'
 
+
+-- | Decode a claims set and verify that the signature matches by using the supplied secret.
+-- The algorithm is based on the supplied header value. 
+--
+-- This will return a VerifiedJWT if and only if the signature can be verified
+-- using the given secret.
+--
+-- > import qualified Data.Text as T
+-- > let input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
+-- >     mJwt = decodeAndVerifySignature (secret "secret") input
+-- >     mSignature = join $ fmap signature mJwt
+--
+-- This yields:
+--
+-- > >>> mJwt
+-- > Just (Verified (JWTHeader {typ = Just "JWT", cty = Nothing, alg = Just HS256})
+-- >    (JWTClaimsSet {iss = Nothing, sub = Nothing, aud = Nothing, exp = Nothing,
+-- >     nbf = Nothing, iat = Nothing, jti = Nothing,
+-- >     unregisteredClaims = fromList [("some",String "payload")]})
+-- >    (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"))
+--
+-- and
+--
+-- > >>> mSignature
+-- > Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
+decodeAndVerifySignature :: Secret -> T.Text -> Maybe (JWT VerifiedJWT)
+decodeAndVerifySignature secret' input = do
+        let (h:c:s:_) = T.splitOn "." input
+        header' <- parseJWT h
+        claims' <- parseJWT c
+        algo  <- fmap alg header'
+        let sign = if Just s == calculateMessageDigest h c algo then pure $ Signature s else mzero
+        Verified <$> header' <*> claims' <*> sign
+    where
+      calculateMessageDigest header' claims' (Just algo') = Just $ calculateDigest algo' secret' (dotted [header', claims'])
+      calculateMessageDigest _ _ Nothing = Nothing
 
 -- | Try to extract the value for the issue claim field 'iss' from the web token in JSON form
 tokenIssuer :: JSON -> Maybe T.Text
 tokenIssuer = decode >=> fmap pure claims >=> iss
 
--- | Decode a claims set and verify that the signature matches by using the supplied secret
-decodeAndVerify :: Secret -> T.Text -> Maybe (JWT VerifiedJWT)
-decodeAndVerify secret' input = do
-        let (h:c:s:_) = T.splitOn "." input
-        header <- parseJWT h
-        claims <- parseJWT c
-        let sign = if s == calculateMessageDigest h c then pure $ Signature s else mzero
-        Verified <$> header <*> claims <*> sign
-      where calculateMessageDigest header claims = calculateDigest HS256 secret' (dotted [header, claims])
+-- | Create a Secret using the given key
+-- This will currently simply wrap the given key appropriately buy may
+-- return a Nothing in the future if the key needs to adhere to a specific
+-- format and the given key is invalid.
+secret :: T.Text -> Secret
+secret = Secret
+
+-- =================================================================================
+
+encodeJWT :: ToJSON a => a -> T.Text
+encodeJWT = base64Encode . TE.decodeUtf8 . BL.toStrict . JSON.encode
 
 parseJWT :: FromJSON a => T.Text -> Maybe a
 parseJWT = JSON.decode . BL.fromStrict . TE.encodeUtf8 . base64Decode
@@ -195,11 +308,9 @@ parseJWT = JSON.decode . BL.fromStrict . TE.encodeUtf8 . base64Decode
 dotted :: [T.Text] -> T.Text
 dotted = T.intercalate "."
 
--- | Create a Secret using the given key
-secret :: T.Text -> Secret
-secret = Secret
 
 -- =================================================================================
+
 
 base64Decode :: T.Text -> T.Text
 base64Decode = operateOnText BASE64.decodeLenient
@@ -214,7 +325,7 @@ removePaddingBase64Encoding :: T.Text -> T.Text
 removePaddingBase64Encoding = T.dropWhileEnd (=='=')
 
 calculateDigest :: Algorithm -> Secret -> T.Text -> T.Text
-calculateDigest _ (Secret key) msg =  base64Encode' $ HMAC.hmac SHA.hash 64 (bs key) (bs msg)
+calculateDigest _ (Secret key) msg = base64Encode' $ HMAC.hmac SHA.hash 64 (bs key) (bs msg)
     where bs = TE.encodeUtf8
           base64Encode' = removePaddingBase64Encoding . TE.decodeUtf8 . BASE64.encode
 
@@ -278,9 +389,7 @@ instance FromJSON IntDate where
 
 instance ToJSON Algorithm where
     toJSON HS256 = String ("HS256"::T.Text)
-    toJSON NONE  = String ("NONE"::T.Text)
 
 instance FromJSON Algorithm where
     parseJSON (String "HS256") = return HS256
-    parseJSON (String "NONE")  = return NONE
     parseJSON _                = mzero

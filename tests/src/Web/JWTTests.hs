@@ -32,6 +32,7 @@ case_decodeJWT = do
     let input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
         mJwt = decode input
     True @=? isJust mJwt
+    True @=? (isJust $ fmap signature mJwt)
     let (Just unverified) = mJwt
     (Just HS256) @=? (alg $ header unverified)
     (Just "payload") @=? (Map.lookup "some" $ unregisteredClaims $ claims unverified)
@@ -39,7 +40,7 @@ case_decodeJWT = do
 case_decodeAndVerifyJWT = do
     -- Generated with ruby-jwt
     let input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
-        mJwt = decodeAndVerify (secret "secret") input
+        mJwt = decodeAndVerifySignature (secret "secret") input
     True @=? isJust mJwt
     let (Just verified) = mJwt
     (Just HS256) @=? (alg $ header verified)
@@ -48,8 +49,27 @@ case_decodeAndVerifyJWT = do
 case_decodeAndVerifyJWTFailing = do
     -- Generated with ruby-jwt, modified to be invalid
     let input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2u"
-        mJwt = decodeAndVerify (secret "secret") input
+        mJwt = decodeAndVerifySignature (secret "secret") input
     False @=? isJust mJwt
+
+case_encodeJWTNoMac = do
+    let cs = def {
+        iss = Just "Foo"
+      , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
+    }
+        jwt = encodeUnsigned cs
+    -- Verified using https://py-jwt-decoder.appspot.com/
+    "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0." @=? jwt
+
+case_encodeDecodeJWTNoMac = do
+    let cs = def {
+        iss = Just "Foo"
+      , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
+    }
+        mJwt = decode $ encodeUnsigned cs
+    True @=? (isJust mJwt)
+    let (Just unverified) = mJwt
+    cs @=? claims unverified
 
 case_encodeDecodeJWT = do
     let cs = def {
@@ -57,7 +77,7 @@ case_encodeDecodeJWT = do
       , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
     }
         key = secret "secret-key"
-        mJwt = decode $ encode key cs
+        mJwt = decode $ encodeSigned HS256 key cs
     True @=? (isJust mJwt)
     let (Just unverified) = mJwt
     cs @=? claims unverified
@@ -68,7 +88,7 @@ case_tokenIssuer = do
       , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
     }
         key = secret "secret-key"
-        t   = encode key cs
+        t   = encodeSigned HS256 key cs
     Just "Foo" @=? tokenIssuer t
 
 
@@ -77,7 +97,7 @@ case_encodeJWTClaimsSet = do
         iss = Just "Foo"
     }
     -- This is a valid JWT string that can be decoded with the given secret using the ruby JWT library
-    "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJGb28ifQ.dfhkuexBONtkewFjLNz9mZlFc82GvRkaZKD8Pd53zJ8" @=? encode (secret "secret") cs
+    "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJGb28ifQ.dfhkuexBONtkewFjLNz9mZlFc82GvRkaZKD8Pd53zJ8" @=? encodeSigned HS256 (secret "secret") cs
 
 case_encodeJWTClaimsSetCustomClaims = do
     let cs = def {
@@ -85,7 +105,7 @@ case_encodeJWTClaimsSetCustomClaims = do
       , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
     }
     -- The expected string can be decoded using the ruby-jwt library
-    "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.UVp4TIg8-OmY_vNHbyxMPx7v0P6jCY4rqYVWVcjdXQk" @=? encode (secret "secret") cs
+    "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.UVp4TIg8-OmY_vNHbyxMPx7v0P6jCY4rqYVWVcjdXQk" @=? encodeSigned HS256 (secret "secret") cs
 
 case_base64EncodeString = do
     let header = "{\"typ\":\"JWT\",\r\n \"alg\":\"HS256\"}"
@@ -103,11 +123,20 @@ case_base64DecodeString = do
     let str = "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9"
     "{\"typ\":\"JWT\",\r\n \"alg\":\"HS256\"}" @=? base64Decode str
 
+prop_base64_encode_decode = f
+    where f :: T.Text -> Bool
+          f input = (base64Decode $ base64Encode input) == input
 
 prop_encode_decode_prop = f
     where f :: JWTClaimsSet -> Bool
-          f claims' = let Just unverified = (decode $ encode (secret "secret") claims')
+          f claims' = let Just unverified = (decode $ encodeSigned HS256 (secret "secret") claims')
                       in claims unverified == claims'
+
+prop_encode_decode_verify_signature_prop = f
+    where f :: JWTClaimsSet -> Bool
+          f claims' = let key = secret "secret"
+                          Just verified = (decodeAndVerifySignature key $ encodeSigned HS256 key claims')
+                      in claims verified == claims'
 
 
 instance Arbitrary JWTClaimsSet where
