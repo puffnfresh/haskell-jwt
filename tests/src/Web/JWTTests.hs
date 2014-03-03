@@ -52,6 +52,16 @@ case_decodeAndVerifyJWTFailing = do
         mJwt = decodeAndVerifySignature (secret "secret") input
     False @=? isJust mJwt
 
+case_decodeInvalidInput = do
+    let inputs = ["", "a.", "a.b"]
+        result = map decode inputs
+    True @=? (all isNothing result)
+
+case_decodeAndVerifySignatureInvalidInput = do
+    let inputs = ["", "a.", "a.b"]
+        result = map (decodeAndVerifySignature (secret "secret")) inputs
+    True @=? (all isNothing result)
+
 case_encodeJWTNoMac = do
     let cs = def {
         iss = Just "Foo"

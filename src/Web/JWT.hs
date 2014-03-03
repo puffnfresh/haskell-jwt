@@ -244,10 +244,14 @@ encodeUnsigned claims = dotted [header, claim, ""]
 -- > >>> mSignature
 -- > Nothing
 decode :: JSON -> Maybe (JWT UnverifiedJWT)
-decode input = let (h:c:_) = T.splitOn "." input
-                   header' = parseJWT h
-                   claims' = parseJWT c
-               in Unverified <$> header' <*> claims'
+decode input = do
+    (h,c) <- extractElems $ T.splitOn "." input
+    let header' = parseJWT h
+        claims' = parseJWT c
+    Unverified <$> header' <*> claims'
+    where
+        extractElems (h:c:_) = Just (h,c)
+        extractElems _       = Nothing
 
 
 -- | Decode a claims set and verify that the signature matches by using the supplied secret.
@@ -276,7 +280,7 @@ decode input = let (h:c:_) = T.splitOn "." input
 -- > Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
 decodeAndVerifySignature :: Secret -> T.Text -> Maybe (JWT VerifiedJWT)
 decodeAndVerifySignature secret' input = do
-        let (h:c:s:_) = T.splitOn "." input
+        (h,c,s) <- extractElems $ T.splitOn "." input
         header' <- parseJWT h
         claims' <- parseJWT c
         algo  <- fmap alg header'
@@ -285,6 +289,8 @@ decodeAndVerifySignature secret' input = do
     where
       calculateMessageDigest header' claims' (Just algo') = Just $ calculateDigest algo' secret' (dotted [header', claims'])
       calculateMessageDigest _ _ Nothing = Nothing
+      extractElems (h:c:s:_) = Just (h,c,s)
+      extractElems _         = Nothing
 
 -- | Try to extract the value for the issue claim field 'iss' from the web token in JSON form
 tokenIssuer :: JSON -> Maybe T.Text
