@@ -23,6 +23,10 @@ source-repository head
     type: git
     location: https://ssaasen@bitbucket.org/ssaasen/haskell-jwt.git
 
+extra-source-files:
+    changelog
+    README.md
+
 library
   exposed-modules:     Web.JWT
   build-depends:       base >= 4.6 && < 4.7

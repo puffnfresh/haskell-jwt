@@ -1,0 +1,9 @@
+2014-03-03	0.1.1
+=================
+
+	* Verify that invalid input to the decode* functions fails as expected
+
+2014-03-03	0.1.0
+=================
+
+	* Initial release
