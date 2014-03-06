@@ -16,8 +16,11 @@ import qualified Data.Map              as Map
 import qualified Data.Text             as T
 import qualified Data.Text.Lazy        as TL
 import           Data.Aeson.Types
+import qualified Data.Aeson            as JSON
 import           Data.Maybe
 import           Data.String (fromString, IsString)
+import           Data.Time
+
 import           Web.JWT
 
 defaultTestGroup :: TestTree
@@ -26,6 +29,17 @@ defaultTestGroup = $(testGroupGenerator)
 main :: IO ()
 main = defaultMain defaultTestGroup
 
+
+
+case_stringOrURIString = do
+    let str = "foo bar baz 2312j!@&^#^*!(*@"
+        sou = stringOrURI str
+    (Just str) @=? (fmap (T.pack . show) sou)
+
+case_stringOrURI= do
+    let str = "http://user@example.com:8900/foo/bar?baz=t;"
+        sou = stringOrURI str
+    (Just str) @=? (fmap (T.pack . show) sou)
 
 case_decodeJWT = do
     -- Generated with ruby-jwt
@@ -64,7 +78,7 @@ case_decodeAndVerifySignatureInvalidInput = do
 
 case_encodeJWTNoMac = do
     let cs = def {
-        iss = Just "Foo"
+        iss = stringOrURI "Foo"
       , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
     }
         jwt = encodeUnsigned cs
@@ -73,7 +87,7 @@ case_encodeJWTNoMac = do
 
 case_encodeDecodeJWTNoMac = do
     let cs = def {
-        iss = Just "Foo"
+        iss = stringOrURI "Foo"
       , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
     }
         mJwt = decode $ encodeUnsigned cs
@@ -83,7 +97,7 @@ case_encodeDecodeJWTNoMac = do
 
 case_encodeDecodeJWT = do
     let cs = def {
-        iss = Just "Foo"
+        iss = stringOrURI "Foo"
       , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
     }
         key = secret "secret-key"
@@ -93,49 +107,38 @@ case_encodeDecodeJWT = do
     cs @=? claims unverified
 
 case_tokenIssuer = do
-    let cs = def {
-        iss = Just "Foo"
+    let iss' = stringOrURI "Foo"
+        cs = def {
+        iss = iss'
       , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
     }
         key = secret "secret-key"
         t   = encodeSigned HS256 key cs
-    Just "Foo" @=? tokenIssuer t
+    iss' @=? tokenIssuer t
 
 
 case_encodeJWTClaimsSet = do
     let cs = def {
-        iss = Just "Foo"
+        iss = stringOrURI "Foo"
     }
     -- This is a valid JWT string that can be decoded with the given secret using the ruby JWT library
     "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJGb28ifQ.dfhkuexBONtkewFjLNz9mZlFc82GvRkaZKD8Pd53zJ8" @=? encodeSigned HS256 (secret "secret") cs
 
 case_encodeJWTClaimsSetCustomClaims = do
-    let cs = def {
-        iss = Just "Foo"
+    let now = 1234
+        cs = def {
+        iss = stringOrURI "Foo"
+      , iat = intDate now
       , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
     }
     -- The expected string can be decoded using the ruby-jwt library
-    "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.UVp4TIg8-OmY_vNHbyxMPx7v0P6jCY4rqYVWVcjdXQk" @=? encodeSigned HS256 (secret "secret") cs
+    "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjEyMzQsImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlLCJpc3MiOiJGb28ifQ.F3VCSxBBnY2caX4AH4GvIHyTVUhOnJF9Av_G_N4m710" @=? encodeSigned HS256 (secret "secret") cs
 
-case_base64EncodeString = do
-    let header = "{\"typ\":\"JWT\",\r\n \"alg\":\"HS256\"}"
-    "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9" @=? base64Encode header
 
-case_base64EncodeStringNoPadding = do
-    let header = "sdjkfhaks jdhfak sjldhfa lkjsdf"
-    "c2Rqa2ZoYWtzIGpkaGZhayBzamxkaGZhIGxranNkZg" @=? base64Encode header
-
-case_base64EncodeDecodeStringNoPadding = do
-    let header = "sdjkfhaks jdhfak sjldhfa lkjsdf"
-    header @=? (base64Decode $ base64Encode header)
-
-case_base64DecodeString = do
-    let str = "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9"
-    "{\"typ\":\"JWT\",\r\n \"alg\":\"HS256\"}" @=? base64Decode str
-
-prop_base64_encode_decode = f
-    where f :: T.Text -> Bool
-          f input = (base64Decode $ base64Encode input) == input
+prop_stringOrURIProp = f
+    where f :: StringOrURI -> Bool
+          f sou = let s = stringOrURI $ T.pack $ show sou
+                  in (Just sou) == s
 
 prop_encode_decode_prop = f
     where f :: JWTClaimsSet -> Bool
@@ -164,7 +167,17 @@ instance Arbitrary ClaimsMap where
     arbitrary = return Map.empty
 
 instance Arbitrary IntDate where
-    arbitrary = IntDate <$> (arbitrary :: QC.Gen Integer)
+    arbitrary = fmap (f . intDate) (arbitrary :: QC.Gen NominalDiffTime)
+        where f mIntDate = fromMaybe (fromJust $ intDate 1) mIntDate
+
+instance Arbitrary NominalDiffTime where
+    arbitrary = arbitrarySizedFractional
+    shrink    = shrinkRealFrac
+
+instance Arbitrary StringOrURI where
+    arbitrary = fmap (f . stringOrURI) (arbitrary :: QC.Gen T.Text)
+        where
+            f mSou = fromMaybe (fromJust $ stringOrURI "http://example.com") mSou
 
 instance Arbitrary T.Text where
     arbitrary = fromString <$> (arbitrary :: QC.Gen String)

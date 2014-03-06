@@ -1,12 +1,10 @@
-{-# LANGUAGE CPP               #-}
-{-# LANGUAGE EmptyDataDecls    #-}
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE StandaloneDeriving   #-}
-
--- TODO:
---   * StringOrUri is not valdiated
+{-# LANGUAGE EmptyDataDecls     #-}
+{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE GADTs              #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE RankNTypes         #-}
+{-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 {-|
 Module:      Web.JWT
@@ -35,12 +33,20 @@ module Web.JWT
     , encodeUnsigned
 
     -- * Utility functions
+    -- ** Common
     , tokenIssuer
     , secret
+    -- ** JWT structure
     , claims
     , header
     , signature
-    , module Data.Default
+    -- ** JWT claims set
+    , intDate
+    , stringOrURI
+    -- ** JWT header
+    , typ
+    , cty
+    , alg
 
     -- * Types
     , UnverifiedJWT
@@ -51,16 +57,13 @@ module Web.JWT
     , JSON
     , Algorithm(..)
     , JWTClaimsSet(..)
+    , IntDate
+    , StringOrURI
+    , JWTHeader
 
-#ifdef TEST
-    , IntDate(..)
-    , JWTHeader(..)
-    , base64Encode
-    , base64Decode
-#endif
+    , module Data.Default
     ) where
 
-import qualified Data.ByteString.Char8      as B
 import qualified Data.ByteString.Lazy.Char8 as BL (fromStrict, toStrict)
 import qualified Data.Text                  as T
 import qualified Data.Text.Encoding         as TE
@@ -71,12 +74,14 @@ import qualified Crypto.Hash.SHA256         as SHA
 import qualified Crypto.MAC.HMAC            as HMAC
 import           Data.Aeson                 hiding (decode, encode)
 import qualified Data.Aeson                 as JSON
-import qualified Data.ByteString.Base64.URL as BASE64
 import           Data.Default
 import qualified Data.HashMap.Strict        as StrictMap
 import qualified Data.Map                   as Map
 import           Data.Maybe
 import           Data.Scientific
+import           Data.Time.Clock            (NominalDiffTime)
+import qualified Network.URI                as URI
+import           Web.Base64
 import           Prelude                    hiding (exp)
 
 
@@ -118,15 +123,39 @@ signature (Verified _ _ s) = Just s
 
 -- | A JSON numeric value representing the number of seconds from
 --   1970-01-01T0:0:0Z UTC until the specified UTC date/time.
-newtype IntDate = IntDate Integer deriving (Eq, Show)
+newtype IntDate = IntDate Integer deriving (Show, Eq)
+
+
+-- | A JSON string value, with the additional requirement that while
+-- arbitrary string values MAY be used, any value containing a ":"
+-- character MUST be a URI [RFC3986].  StringOrURI values are
+-- compared as case-sensitive strings with no transformations or
+-- canonicalizations applied.
+data StringOrURI = S T.Text | U URI.URI deriving (Eq)
+
+instance Show StringOrURI where
+    show (S s) = T.unpack s
+    show (U u) = show u
+
 
 data Algorithm = HS256 -- ^ HMAC using SHA-256 hash algorithm
                  deriving (Eq, Show)
 
 -- | JWT Header, describes the cryptographic operations applied to the JWT
 data JWTHeader = JWTHeader {
+    -- | The typ (type) Header Parameter defined by [JWS] and [JWE] is used to
+    -- declare the MIME Media Type [IANA.MediaTypes] of this complete JWT in
+    -- contexts where this is useful to the application.
+    -- This parameter has no effect upon the JWT processing.
     typ :: Maybe T.Text
+    -- | The cty (content type) Header Parameter defined by [JWS] and [JWE] is
+    -- used by this specification to convey structural information about the JWT.
   , cty :: Maybe T.Text
+    -- | The alg (algorithm) used for signing the JWT. The HS256 (HMAC using SHA-256)
+    -- is the only required algorithm and the only one supported in this implementation
+    -- in addition to "none" which means that no signature will be used.
+    --
+    -- See <http://tools.ietf.org/html/draft-ietf-jose-json-web-algorithms-23#page-6>
   , alg :: Maybe Algorithm
 } deriving (Eq, Show)
 
@@ -139,13 +168,13 @@ data JWTClaimsSet = JWTClaimsSet {
     -- http://self-issued.info/docs/draft-ietf-oauth-json-web-token.html#ClaimsContents
 
     -- | The iss (issuer) claim identifies the principal that issued the JWT.
-    iss                :: Maybe T.Text
+    iss                :: Maybe StringOrURI
 
     -- | The sub (subject) claim identifies the principal that is the subject of the JWT.
-  , sub                :: Maybe T.Text
+  , sub                :: Maybe StringOrURI
 
     -- | The aud (audience) claim identifies the audiences that the JWT is intended for
-  , aud                :: Maybe T.Text
+  , aud                :: Maybe StringOrURI
 
     -- | The exp (expiration time) claim identifies the expiration time on or after which the JWT MUST NOT be accepted for processing. Its value MUST be a number containing an IntDate value.
   , exp                :: Maybe IntDate
@@ -157,11 +186,11 @@ data JWTClaimsSet = JWTClaimsSet {
   , iat                :: Maybe IntDate
 
     -- | The jti (JWT ID) claim provides a unique identifier for the JWT.
-  , jti                :: Maybe T.Text
+  , jti                :: Maybe StringOrURI
 
   , unregisteredClaims :: ClaimsMap
 
-} deriving (Eq, Show)
+} deriving (Show, Eq)
 
 
 instance Default JWTClaimsSet where
@@ -171,9 +200,11 @@ instance Default JWTClaimsSet where
 -- | Encode a claims set using the given secret
 --
 -- > {-# LANGUAGE OverloadedStrings #-}
+-- > import           Data.Aeson
+-- > import qualified Data.Map as Map
 -- >
 -- > let cs = def {  -- def returns a default JWTClaimsSet
--- >     iss = Just "Foo"
+-- >     iss = stringOrURI "Foo"
 -- >   , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
 -- > }
 -- >     key = secret "secret-key"
@@ -195,9 +226,11 @@ encodeSigned algo secret claims = dotted [header, claim, signature]
 -- | Encode a claims set without signing it
 --
 -- > {-# LANGUAGE OverloadedStrings #-}
+-- > import           Data.Aeson
+-- > import qualified Data.Map as Map
 -- >
 -- > let cs = def {  -- def returns a default JWTClaimsSet
--- >     iss = Just "Foo"
+-- >     iss = stringOrURI "Foo"
 -- >   , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
 -- > }
 -- >     jwt = encodeUnsigned cs
@@ -255,7 +288,7 @@ decode input = do
 
 
 -- | Decode a claims set and verify that the signature matches by using the supplied secret.
--- The algorithm is based on the supplied header value. 
+-- The algorithm is based on the supplied header value.
 --
 -- This will return a VerifiedJWT if and only if the signature can be verified
 -- using the given secret.
@@ -293,7 +326,7 @@ decodeAndVerifySignature secret' input = do
       extractElems _         = Nothing
 
 -- | Try to extract the value for the issue claim field 'iss' from the web token in JSON form
-tokenIssuer :: JSON -> Maybe T.Text
+tokenIssuer :: JSON -> Maybe StringOrURI
 tokenIssuer = decode >=> fmap pure claims >=> iss
 
 -- | Create a Secret using the given key
@@ -302,6 +335,20 @@ tokenIssuer = decode >=> fmap pure claims >=> iss
 -- format and the given key is invalid.
 secret :: T.Text -> Secret
 secret = Secret
+
+-- | Convert the `NominalDiffTime` into an IntDate. Returns a Nothing if the
+-- argument is invalid (e.g. the NominalDiffTime must be convertible into a
+-- positive Integer representing the seconds since epoch).
+intDate :: NominalDiffTime -> Maybe IntDate
+intDate i | i < 0 = Nothing
+intDate i = Just $ IntDate $ round i
+
+-- | Convert a `T.Text` into a 'StringOrURI`. Returns a Nothing if the
+-- String cannot be converted (e.g. if the String contains a ':' but is
+-- *not* a valid URI).
+stringOrURI :: T.Text -> Maybe  StringOrURI
+stringOrURI t | URI.isURI $ T.unpack t = U <$> (URI.parseURI $ T.unpack t)
+stringOrURI t = Just (S t)
 
 -- =================================================================================
 
@@ -317,23 +364,9 @@ dotted = T.intercalate "."
 
 -- =================================================================================
 
-
-base64Decode :: T.Text -> T.Text
-base64Decode = operateOnText BASE64.decodeLenient
-
-base64Encode :: T.Text -> T.Text
-base64Encode = removePaddingBase64Encoding . operateOnText BASE64.encode
-
-operateOnText :: (B.ByteString -> B.ByteString) -> T.Text -> T.Text
-operateOnText f = TE.decodeUtf8 . f . TE.encodeUtf8
-
-removePaddingBase64Encoding :: T.Text -> T.Text
-removePaddingBase64Encoding = T.dropWhileEnd (=='=')
-
 calculateDigest :: Algorithm -> Secret -> T.Text -> T.Text
 calculateDigest _ (Secret key) msg = base64Encode' $ HMAC.hmac SHA.hash 64 (bs key) (bs msg)
     where bs = TE.encodeUtf8
-          base64Encode' = removePaddingBase64Encoding . TE.decodeUtf8 . BASE64.encode
 
 -- =================================================================================
 
@@ -387,7 +420,7 @@ instance ToJSON JWTHeader where
             ]
 
 instance ToJSON IntDate where
-    toJSON (IntDate ts) = Number $ scientific (fromIntegral ts) 0
+    toJSON (IntDate i) = Number $ scientific (fromIntegral i) 0
 
 instance FromJSON IntDate where
     parseJSON (Number x) = return $ IntDate $ coefficient x
@@ -399,3 +432,14 @@ instance ToJSON Algorithm where
 instance FromJSON Algorithm where
     parseJSON (String "HS256") = return HS256
     parseJSON _                = mzero
+
+instance ToJSON StringOrURI where
+    toJSON (S s) = String s
+    toJSON (U uri) = String $ T.pack $ URI.uriToString id uri ""
+
+instance FromJSON StringOrURI where
+    parseJSON (String s) | URI.isURI $ T.unpack s = return $ U $ fromMaybe URI.nullURI $ URI.parseURI $ T.unpack s
+    parseJSON (String s) = return $ S s
+    parseJSON _          = mzero
+
+
