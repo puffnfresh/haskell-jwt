@@ -351,7 +351,7 @@ intDate i = Just $ IntDate $ round i
 -- String cannot be converted (e.g. if the String contains a ':' but is
 -- *not* a valid URI).
 stringOrURI :: T.Text -> Maybe  StringOrURI
-stringOrURI t | URI.isURI $ T.unpack t = U <$> (URI.parseURI $ T.unpack t)
+stringOrURI t | URI.isURI $ T.unpack t = U <$> URI.parseURI (T.unpack t)
 stringOrURI t = Just (S t)
 
 -- =================================================================================

@@ -38,7 +38,7 @@ case_base64EncodeStringNoPadding = do
 
 case_base64EncodeDecodeStringNoPadding = do
     let header = "sdjkfhaks jdhfak sjldhfa lkjsdf"
-    header @=? (base64Decode $ base64Encode header)
+    header @=? base64Decode (base64Encode header)
 
 case_base64DecodeString = do
     let str = "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9"
@@ -46,7 +46,7 @@ case_base64DecodeString = do
 
 prop_base64_encode_decode = f
     where f :: T.Text -> Bool
-          f input = (base64Decode $ base64Encode input) == input
+          f input = base64Decode (base64Encode input) == input
 
 
 instance Arbitrary T.Text where
