@@ -43,6 +43,7 @@ module Web.JWT
     -- ** JWT claims set
     , intDate
     , stringOrURI
+    , secondsSinceEpoch
     -- ** JWT header
     , typ
     , cty
@@ -122,9 +123,12 @@ signature (Unverified _ _) = Nothing
 signature (Verified _ _ s) = Just s
 
 -- | A JSON numeric value representing the number of seconds from
---   1970-01-01T0:0:0Z UTC until the specified UTC date/time.
+-- 1970-01-01T0:0:0Z UTC until the specified UTC date/time.
 newtype IntDate = IntDate Integer deriving (Show, Eq)
 
+-- | Return the seconds since 1970-01-01T0:0:0Z UTC for the given 'IntDate'
+secondsSinceEpoch :: IntDate -> NominalDiffTime
+secondsSinceEpoch (IntDate s) = fromInteger s
 
 -- | A JSON string value, with the additional requirement that while
 -- arbitrary string values MAY be used, any value containing a ":"

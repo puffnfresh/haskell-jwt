@@ -96,8 +96,10 @@ case_encodeDecodeJWTNoMac = do
     cs @=? claims unverified
 
 case_encodeDecodeJWT = do
-    let cs = def {
+    let now = 1394573404
+        cs = def {
         iss = stringOrURI "Foo"
+      , iat = intDate now
       , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
     }
         key = secret "secret-key"
@@ -105,6 +107,7 @@ case_encodeDecodeJWT = do
     True @=? (isJust mJwt)
     let (Just unverified) = mJwt
     cs @=? claims unverified
+    Just now @=? fmap secondsSinceEpoch (iat (claims unverified))
 
 case_tokenIssuer = do
     let iss' = stringOrURI "Foo"
