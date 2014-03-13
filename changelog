@@ -1,14 +1,23 @@
+2014-03-10 0.2.1
+=================
+
+    * Add Decoding/Encoding sections
+    * Make the examples runnable by doctest
+    * Fix hlint warnings
+    * Add 'secondsSinceEpoch' to extract the seconds from epoch from an IntDate
+
+
 2014-03-10 0.2.0
 =================
 
 	* Export the IntDate and StringOrURI types #5a1137b
 
-2014-03-03	0.1.1
+2014-03-03  0.1.1
 =================
 
 	* Verify that invalid input to the decode* functions fails as expected
 
-2014-03-03	0.1.0
+2014-03-03  0.1.0
 =================
 
 	* Initial release
