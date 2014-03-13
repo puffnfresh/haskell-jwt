@@ -27,8 +27,10 @@ Known limitations:
 module Web.JWT
     (
     -- * Encoding & Decoding JWTs
+    -- ** Decoding
       decode
     , decodeAndVerifySignature
+    -- ** Encoding
     , encodeSigned
     , encodeUnsigned
 
