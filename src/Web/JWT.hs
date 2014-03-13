@@ -201,23 +201,20 @@ instance Default JWTClaimsSet where
     def = JWTClaimsSet Nothing Nothing Nothing Nothing Nothing Nothing Nothing Map.empty
 
 
+
+
 -- | Encode a claims set using the given secret
 --
--- > {-# LANGUAGE OverloadedStrings #-}
--- > import           Data.Aeson
--- > import qualified Data.Map as Map
--- >
--- > let cs = def {  -- def returns a default JWTClaimsSet
--- >     iss = stringOrURI "Foo"
--- >   , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
--- > }
--- >     key = secret "secret-key"
--- >     jwt = encodeSigned HS256 key cs
---
--- This yields:
---
--- > >>> jwt
--- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.vHQHuG3ujbnBUmEp-fSUtYxk27rLiP2hrNhxpyWhb2E"
+-- >>> :{
+--  let
+--      cs = def { -- def returns a default JWTClaimsSet
+--         iss = stringOrURI "Foo"
+--       , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
+--      }
+--      key = secret "secret-key"
+--  in encodeSigned HS256 key cs
+-- :}
+-- "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.vHQHuG3ujbnBUmEp-fSUtYxk27rLiP2hrNhxpyWhb2E"
 encodeSigned :: Algorithm -> Secret -> JWTClaimsSet -> JSON
 encodeSigned algo secret claims = dotted [header, claim, signature]
     where claim     = encodeJWT claims
@@ -229,20 +226,16 @@ encodeSigned algo secret claims = dotted [header, claim, signature]
 
 -- | Encode a claims set without signing it
 --
--- > {-# LANGUAGE OverloadedStrings #-}
--- > import           Data.Aeson
--- > import qualified Data.Map as Map
--- >
--- > let cs = def {  -- def returns a default JWTClaimsSet
--- >     iss = stringOrURI "Foo"
--- >   , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
--- > }
--- >     jwt = encodeUnsigned cs
---
--- This yields:
---
--- > >>> jwt
--- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0."
+-- >>> :{
+--  let
+--      cs = def { -- def returns a default JWTClaimsSet
+--      iss = stringOrURI "Foo"
+--    , iat = intDate 1394700934
+--    , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
+--  }
+--  in encodeUnsigned cs
+-- :}
+-- "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjEzOTQ3MDA5MzQsImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlLCJpc3MiOiJGb28ifQ."
 encodeUnsigned :: JWTClaimsSet -> JSON
 encodeUnsigned claims = dotted [header, claim, ""]
     where claim     = encodeJWT claims
@@ -257,29 +250,23 @@ encodeUnsigned claims = dotted [header, claim, ""]
 -- (e.g. the secret needs to be retrieved based on unverified information
 -- from the claims set).
 --
--- > import qualified Data.Text as T
--- > let input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
--- >     mJwt = decode input
--- >     mHeader = fmap header mJwt
--- >     mClaims = fmap claims mJwt
--- >     mSignature = join $ fmap signature mJwt
---
--- This yields:
---
--- > >>> mHeader
--- > Just (JWTHeader {typ = Just "JWT", cty = Nothing, alg = Just HS256})
+-- >>> :{
+--  let
+--      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
+--      mJwt = decode input
+--  in fmap header mJwt
+-- :}
+-- Just (JWTHeader {typ = Just "JWT", cty = Nothing, alg = Just HS256})
 --
 -- and
 --
--- > >>> mClaims
--- > Just (JWTClaimsSet {iss = Nothing, sub = Nothing, aud = Nothing,
--- >     exp = Nothing, nbf = Nothing, iat = Nothing, jti = Nothing,
--- >     unregisteredClaims = fromList [("some",String "payload")]})
---
--- and
---
--- > >>> mSignature
--- > Nothing
+-- >>> :{
+--  let
+--      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
+--      mJwt = decode input
+--  in fmap claims mJwt
+-- :}
+-- Just (JWTClaimsSet {iss = Nothing, sub = Nothing, aud = Nothing, exp = Nothing, nbf = Nothing, iat = Nothing, jti = Nothing, unregisteredClaims = fromList [("some",String "payload")]})
 decode :: JSON -> Maybe (JWT UnverifiedJWT)
 decode input = do
     (h,c) <- extractElems $ T.splitOn "." input
@@ -297,24 +284,13 @@ decode input = do
 -- This will return a VerifiedJWT if and only if the signature can be verified
 -- using the given secret.
 --
--- > import qualified Data.Text as T
--- > let input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
--- >     mJwt = decodeAndVerifySignature (secret "secret") input
--- >     mSignature = join $ fmap signature mJwt
---
--- This yields:
---
--- > >>> mJwt
--- > Just (Verified (JWTHeader {typ = Just "JWT", cty = Nothing, alg = Just HS256})
--- >    (JWTClaimsSet {iss = Nothing, sub = Nothing, aud = Nothing, exp = Nothing,
--- >     nbf = Nothing, iat = Nothing, jti = Nothing,
--- >     unregisteredClaims = fromList [("some",String "payload")]})
--- >    (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"))
---
--- and
---
--- > >>> mSignature
--- > Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
+-- >>> :{
+--  let
+--      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
+--      mJwt = decodeAndVerifySignature (secret "secret") input
+--  in join $ fmap signature mJwt
+-- :}
+-- Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
 decodeAndVerifySignature :: Secret -> T.Text -> Maybe (JWT VerifiedJWT)
 decodeAndVerifySignature secret' input = do
         (h,c,s) <- extractElems $ T.splitOn "." input
