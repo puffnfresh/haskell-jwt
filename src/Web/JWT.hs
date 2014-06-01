@@ -105,24 +105,24 @@ data VerifiedJWT
 
 -- | The JSON Web Token
 data JWT r where
-   Unverified :: JWTHeader -> JWTClaimsSet -> Signature -> JWT UnverifiedJWT
+   Unverified :: JWTHeader -> JWTClaimsSet -> Signature -> T.Text -> JWT UnverifiedJWT
    Verified   :: JWTHeader -> JWTClaimsSet -> Signature -> JWT VerifiedJWT
 
 deriving instance Show (JWT r)
 
 -- | Extract the claims set from a JSON Web Token
 claims :: JWT r -> JWTClaimsSet
-claims (Unverified _ c _) = c
+claims (Unverified _ c _ _) = c
 claims (Verified _ c _) = c
 
 -- | Extract the header from a JSON Web Token
 header :: JWT r -> JWTHeader
-header (Unverified h _ _) = h
+header (Unverified h _ _ _) = h
 header (Verified h _ _) = h
 
 -- | Extract the signature from a verified JSON Web Token
 signature :: JWT r -> Maybe Signature
-signature (Unverified _ _ _) = Nothing
+signature (Unverified _ _ _ _) = Nothing
 signature (Verified _ _ s) = Just s
 
 -- | A JSON numeric value representing the number of seconds from
@@ -275,7 +275,7 @@ decode input = do
     (h,c,s) <- extractElems $ T.splitOn "." input
     let header' = parseJWT h
         claims' = parseJWT c
-    Unverified <$> header' <*> claims' <*> (pure . Signature $ s)
+    Unverified <$> header' <*> claims' <*> (pure . Signature $ s) <*> (pure . dotted $ [h,c])
     where
         extractElems (h:c:s:_) = Just (h,c,s)
         extractElems _       = Nothing
@@ -292,16 +292,11 @@ decode input = do
 -- isuse for you (there will only ever be one secret) then you should just use
 -- decodeAndVerifySigature.
 verify :: Secret -> JWT UnverifiedJWT -> Maybe (JWT VerifiedJWT)
-verify secret' (Unverified header' claims' unverifiedSignature) = do
+verify secret' (Unverified header' claims' unverifiedSignature originalClaim) = do
    algo <- alg header'
-   let calculatedSignature = calculateMessageDigest secret' header' claims' algo
+   let calculatedSignature = Signature $ calculateDigest algo secret' originalClaim
    guard (unverifiedSignature == calculatedSignature)
    pure $ Verified header' claims' calculatedSignature
-
-calculateMessageDigest :: Secret -> JWTHeader -> JWTClaimsSet -> Algorithm -> Signature
-calculateMessageDigest secret' header' claims' algo = Signature $ calculateDigest algo secret' toSign
-   where
-      toSign = dotted [encodeJWT header', encodeJWT claims']
 
 -- | Decode a claims set and verify that the signature matches by using the supplied secret.
 -- The algorithm is based on the supplied header value.
