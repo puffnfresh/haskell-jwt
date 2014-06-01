@@ -295,11 +295,8 @@ verify :: Secret -> JWT UnverifiedJWT -> Maybe (JWT VerifiedJWT)
 verify secret' (Unverified header' claims' unverifiedSignature) = do
    algo <- alg header'
    let calculatedSignature = calculateMessageDigest secret' header' claims' algo
-   let sign = if unverifiedSignature == calculatedSignature 
-         then pure unverifiedSignature 
-         else mzero
-   verifiedSignature <- sign
-   pure $ Verified header' claims' verifiedSignature
+   guard (unverifiedSignature == calculatedSignature)
+   pure $ Verified header' claims' calculatedSignature
 
 calculateMessageDigest :: Secret -> JWTHeader -> JWTClaimsSet -> Algorithm -> Signature
 calculateMessageDigest secret' header' claims' algo = Signature $ calculateDigest algo secret' toSign
