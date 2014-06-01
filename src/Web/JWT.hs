@@ -314,7 +314,7 @@ calculateMessageDigest secret' header' claims' algo = Signature $ calculateDiges
 --
 -- >>> :{
 --  let
---      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJszb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
+--      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
 --      mJwt = decodeAndVerifySignature (secret "secret") input
 --  in join $ fmap signature mJwt
 -- :}
