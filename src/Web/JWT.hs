@@ -29,6 +29,7 @@ module Web.JWT
     -- * Encoding & Decoding JWTs
     -- ** Decoding
       decode
+    , verify
     , decodeAndVerifySignature
     -- ** Encoding
     , encodeSigned
@@ -104,24 +105,24 @@ data VerifiedJWT
 
 -- | The JSON Web Token
 data JWT r where
-   Unverified :: JWTHeader -> JWTClaimsSet -> JWT UnverifiedJWT
+   Unverified :: JWTHeader -> JWTClaimsSet -> Signature -> T.Text -> JWT UnverifiedJWT
    Verified   :: JWTHeader -> JWTClaimsSet -> Signature -> JWT VerifiedJWT
 
 deriving instance Show (JWT r)
 
 -- | Extract the claims set from a JSON Web Token
 claims :: JWT r -> JWTClaimsSet
-claims (Unverified _ c) = c
+claims (Unverified _ c _ _) = c
 claims (Verified _ c _) = c
 
 -- | Extract the header from a JSON Web Token
 header :: JWT r -> JWTHeader
-header (Unverified h _) = h
+header (Unverified h _ _ _) = h
 header (Verified h _ _) = h
 
 -- | Extract the signature from a verified JSON Web Token
 signature :: JWT r -> Maybe Signature
-signature (Unverified _ _) = Nothing
+signature (Unverified _ _ _ _) = Nothing
 signature (Verified _ _ s) = Just s
 
 -- | A JSON numeric value representing the number of seconds from
@@ -271,14 +272,31 @@ encodeUnsigned claims = dotted [header, claim, ""]
 -- Just (JWTClaimsSet {iss = Nothing, sub = Nothing, aud = Nothing, exp = Nothing, nbf = Nothing, iat = Nothing, jti = Nothing, unregisteredClaims = fromList [("some",String "payload")]})
 decode :: JSON -> Maybe (JWT UnverifiedJWT)
 decode input = do
-    (h,c) <- extractElems $ T.splitOn "." input
+    (h,c,s) <- extractElems $ T.splitOn "." input
     let header' = parseJWT h
         claims' = parseJWT c
-    Unverified <$> header' <*> claims'
+    Unverified <$> header' <*> claims' <*> (pure . Signature $ s) <*> (pure . dotted $ [h,c])
     where
-        extractElems (h:c:_) = Just (h,c)
+        extractElems (h:c:s:_) = Just (h,c,s)
         extractElems _       = Nothing
 
+-- | Using a known secret and a decoded claims set verify that the signature is correct
+-- and return a verified JWT token as a result.
+--
+-- This will return a VerifiedJWT if and only if the signature can be verified using the
+-- given secret.
+--
+-- The separation between decode and verify is very useful if you are communicating with
+-- multiple different services with different secrets and it allows you to lookup the
+-- correct secret for the unverified JWT before trying to verify it. If this is not an
+-- isuse for you (there will only ever be one secret) then you should just use
+-- decodeAndVerifySigature.
+verify :: Secret -> JWT UnverifiedJWT -> Maybe (JWT VerifiedJWT)
+verify secret' (Unverified header' claims' unverifiedSignature originalClaim) = do
+   algo <- alg header'
+   let calculatedSignature = Signature $ calculateDigest algo secret' originalClaim
+   guard (unverifiedSignature == calculatedSignature)
+   pure $ Verified header' claims' calculatedSignature
 
 -- | Decode a claims set and verify that the signature matches by using the supplied secret.
 -- The algorithm is based on the supplied header value.
@@ -293,19 +311,8 @@ decode input = do
 --  in join $ fmap signature mJwt
 -- :}
 -- Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
-decodeAndVerifySignature :: Secret -> T.Text -> Maybe (JWT VerifiedJWT)
-decodeAndVerifySignature secret' input = do
-        (h,c,s) <- extractElems $ T.splitOn "." input
-        header' <- parseJWT h
-        claims' <- parseJWT c
-        algo  <- fmap alg header'
-        let sign = if Just s == calculateMessageDigest h c algo then pure $ Signature s else mzero
-        Verified <$> header' <*> claims' <*> sign
-    where
-      calculateMessageDigest header' claims' (Just algo') = Just $ calculateDigest algo' secret' (dotted [header', claims'])
-      calculateMessageDigest _ _ Nothing = Nothing
-      extractElems (h:c:s:_) = Just (h,c,s)
-      extractElems _         = Nothing
+decodeAndVerifySignature :: Secret -> JSON -> Maybe (JWT VerifiedJWT)
+decodeAndVerifySignature secret' input = verify secret' =<< decode input
 
 -- | Try to extract the value for the issue claim field 'iss' from the web token in JSON form
 tokenIssuer :: JSON -> Maybe StringOrURI
