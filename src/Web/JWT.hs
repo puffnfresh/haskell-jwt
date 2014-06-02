@@ -28,6 +28,7 @@ module Web.JWT
     (
     -- * Encoding & Decoding JWTs
     -- ** Decoding
+    -- $docDecoding
       decode
     , verify
     , decodeAndVerifySignature
@@ -290,7 +291,7 @@ decode input = do
 -- multiple different services with different secrets and it allows you to lookup the
 -- correct secret for the unverified JWT before trying to verify it. If this is not an
 -- isuse for you (there will only ever be one secret) then you should just use
--- decodeAndVerifySigature.
+-- 'decodeAndVerifySignature'.
 --
 -- >>> :{
 --  let
@@ -440,4 +441,24 @@ instance FromJSON StringOrURI where
     parseJSON (String s) = return $ S s
     parseJSON _          = mzero
 
-
+-- $docDecoding
+-- There are three use cases supported by the set of decoding/verification
+-- functions:
+--
+-- (1) Plaintext JWTs (<http://tools.ietf.org/html/draft-ietf-oauth-json-web-token-16#section-6>).
+--      This is supported by the decode function 'decode'.
+--      As a client you don't care about signing or encrypting so you only get back a 'JWT' 'UnverifiedJWT'.
+--      I.e. the type makes it clear that no signature verification was attempted.
+--
+-- (2) Signed JWTs you want to verify using a known secret.
+--      This is what 'decodeAndVerifySignature' supports, given a secret
+--      and JSON it will return a 'JWT' 'VerifiedJWT' if the signature can be
+--      verified.
+--
+-- (3) Signed JWTs that need to be verified using a secret that depends on
+--      information contained in the JWT. E.g. the secret depends on
+--      some claim, therefore the JWT needs to be decoded first and after
+--      retrieving the appropriate secret value, verified in a subsequent step.
+--      This is supported by using the `verify` function which given
+--      a 'JWT' 'UnverifiedJWT' and a secret will return a 'JWT' 'VerifiedJWT' iff the
+--      signature can be verified.
