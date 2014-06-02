@@ -317,7 +317,7 @@ verify secret' (Unverified header' claims' unverifiedSignature originalClaim) = 
 --  let
 --      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
 --      mJwt = decodeAndVerifySignature (secret "secret") input
---  in join $ fmap signature mJwt
+--  in signature =<< mJwt
 -- :}
 -- Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
 decodeAndVerifySignature :: Secret -> JSON -> Maybe (JWT VerifiedJWT)
