@@ -51,6 +51,12 @@ case_decodeJWT = do
     Just HS256 @=? alg (header unverified)
     Just "payload" @=? Map.lookup "some" (unregisteredClaims $ claims unverified)
 
+case_verify = do
+    -- Generated with ruby-jwt
+    let input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
+        mVerified = verify (secret "secret") =<< decode input
+    True @=? isJust mVerified
+
 case_decodeAndVerifyJWT = do
     -- Generated with ruby-jwt
     let input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
