@@ -122,7 +122,7 @@ header (Verified h _ _) = h
 
 -- | Extract the signature from a verified JSON Web Token
 signature :: JWT r -> Maybe Signature
-signature (Unverified _ _ _ _) = Nothing
+signature Unverified{}     = Nothing
 signature (Verified _ _ s) = Just s
 
 -- | A JSON numeric value representing the number of seconds from
