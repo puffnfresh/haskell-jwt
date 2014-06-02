@@ -1,3 +1,9 @@
+2014-06-02 0.3.0
+================
+
+	* Add verify function (thanks to Robert Massaioli) to allow verifying an
+	already decoded JWT token
+
 2014-03-10 0.2.1
 =================
 
