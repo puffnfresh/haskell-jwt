@@ -291,6 +291,15 @@ decode input = do
 -- correct secret for the unverified JWT before trying to verify it. If this is not an
 -- isuse for you (there will only ever be one secret) then you should just use
 -- decodeAndVerifySigature.
+--
+-- >>> :{
+--  let
+--      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
+--      mUnverifiedJwt = decode input
+--      mVerifiedJwt = verify (secret "secret") =<< mUnverifiedJwt
+--  in signature =<< mVerifiedJwt
+-- :}
+-- Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
 verify :: Secret -> JWT UnverifiedJWT -> Maybe (JWT VerifiedJWT)
 verify secret' (Unverified header' claims' unverifiedSignature originalClaim) = do
    algo <- alg header'
