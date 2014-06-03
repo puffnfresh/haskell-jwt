@@ -88,8 +88,13 @@ case_encodeJWTNoMac = do
       , unregisteredClaims = Map.fromList [("http://example.com/is_root", Bool True)]
     }
         jwt = encodeUnsigned cs
-    -- Verified using https://py-jwt-decoder.appspot.com/
-    "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0." @=? jwt
+    -- Verify the shape of the JWT, ensure the shape of the triple of
+    -- <header>.<claims>.<signature>
+    let (h:c:s:_) = T.splitOn "." jwt
+    False @=? T.null h
+    False @=? T.null c
+    True  @=? T.null s
+
 
 case_encodeDecodeJWTNoMac = do
     let cs = def {
@@ -124,23 +129,16 @@ case_tokenIssuer = do
         t   = encodeSigned HS256 key cs
     iss' @=? tokenIssuer t
 
-
-case_encodeJWTClaimsSet = do
-    let cs = def {
-        iss = stringOrURI "Foo"
-    }
-    -- This is a valid JWT string that can be decoded with the given secret using the ruby JWT library
-    "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJGb28ifQ.dfhkuexBONtkewFjLNz9mZlFc82GvRkaZKD8Pd53zJ8" @=? encodeSigned HS256 (secret "secret") cs
-
-case_encodeJWTClaimsSetCustomClaims = do
+case_encodeDecodeJWTClaimsSetCustomClaims = do
     let now = 1234
         cs = def {
         iss = stringOrURI "Foo"
       , iat = intDate now
       , unregisteredClaims = Map.fromList [("http://example.com/is_root", Bool True)]
     }
-    -- The expected string can be decoded using the ruby-jwt library
-    "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjEyMzQsImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlLCJpc3MiOiJGb28ifQ.F3VCSxBBnY2caX4AH4GvIHyTVUhOnJF9Av_G_N4m710" @=? encodeSigned HS256 (secret "secret") cs
+    let secret' = secret "secret"
+        jwt = decodeAndVerifySignature secret' $ encodeSigned HS256 secret' cs
+    Just cs @=? fmap claims jwt
 
 
 prop_stringOrURIProp = f
