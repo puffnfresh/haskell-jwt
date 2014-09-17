@@ -1,3 +1,9 @@
+2014-09-17 0.4.1
+================
+
+	* Update jwt.cabal to work with the new split network package.
+	  Thanks to Jeremy Shaw for reporting this.
+
 2014-08-02 0.4.0
 ================
 
