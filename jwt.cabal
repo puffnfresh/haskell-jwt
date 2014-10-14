@@ -47,10 +47,10 @@ library
                      , http-types               >= 0.8
                      , time                     >= 1.1
 
- if flag(network-uri)
+  if flag(network-uri)
     build-depends:     network-uri          >= 2.6
                      , network              >= 2.6
- else
+  else
     build-depends:     network-uri          >= 2.4 && < 2.6
                      , network              >= 2.4 && < 2.6
 
@@ -87,10 +87,10 @@ test-suite testsuite
                      , http-types
                      , time                     >= 1.1
 
- if flag(network-uri)
+  if flag(network-uri)
     build-depends:     network-uri          >= 2.6
                      , network              >= 2.6
- else
+  else
     build-depends:     network-uri          >= 2.4 && < 2.6
                      , network              >= 2.4 && < 2.6
   cpp-options: -DTEST
