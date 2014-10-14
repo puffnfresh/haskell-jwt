@@ -1,3 +1,10 @@
+2014-10-15 0.4.2
+================
+
+	* Fix the build problems introduced in 0.4.1 to work with the 
+	  split network package. Thanks to Richard Wallace for
+	  fixing this and to Jeremy Shaw for reporting this at the same time.
+
 2014-09-17 0.4.1
 ================
 
