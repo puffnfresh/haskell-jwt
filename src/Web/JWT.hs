@@ -128,7 +128,7 @@ signature (Verified _ _ s) = Just s
 
 -- | A JSON numeric value representing the number of seconds from
 -- 1970-01-01T0:0:0Z UTC until the specified UTC date/time.
-newtype IntDate = IntDate Integer deriving (Show, Eq)
+newtype IntDate = IntDate Integer deriving (Show, Eq, Ord)
 
 -- | Return the seconds since 1970-01-01T0:0:0Z UTC for the given 'IntDate'
 secondsSinceEpoch :: IntDate -> NominalDiffTime

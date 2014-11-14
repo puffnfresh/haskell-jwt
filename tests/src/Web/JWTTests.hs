@@ -41,6 +41,13 @@ case_stringOrURI= do
         sou = stringOrURI str
     Just str @=? fmap (T.pack . show) sou
 
+
+case_intDateDeriveOrd = do
+    let i1 = intDate 1231231231 -- Tue  6 Jan 2009 19:40:31 AEDT
+        i2 = intDate 1231232231 -- Tue  6 Jan 2009 19:57:11 AEDT
+    LT @=? i1 `compare` i2
+
+
 case_decodeJWT = do
     -- Generated with ruby-jwt
     let input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
