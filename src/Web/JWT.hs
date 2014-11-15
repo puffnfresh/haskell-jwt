@@ -12,7 +12,7 @@ License:     MIT
 Maintainer:  Stefan Saasen <stefan@saasen.me>
 Stability:   experimental
 
-This implementation of JWT is based on <http://self-issued.info/docs/draft-ietf-oauth-json-web-token.html> (Version 16)
+This implementation of JWT is based on <http://tools.ietf.org/html/draft-ietf-oauth-json-web-token-30> (Version 30)
 but currently only implements the minimum required to work with the Atlassian Connect framework.
 
 Known limitations:
@@ -23,6 +23,9 @@ Known limitations:
    ('exp', 'nbf', 'iat').
 
    * Registered claims are not validated
+
+   * This implementation uses the term `JWTHeader` instead of `JOSEHeader` (changed in version 23 of the JWT draft).
+     Future versions will move to the offical term once that has stabilised.
 -}
 module Web.JWT
     (
@@ -445,7 +448,7 @@ instance FromJSON StringOrURI where
 -- There are three use cases supported by the set of decoding/verification
 -- functions:
 --
--- (1) Plaintext JWTs (<http://tools.ietf.org/html/draft-ietf-oauth-json-web-token-16#section-6>).
+-- (1) Unsecured JWTs (<http://tools.ietf.org/html/draft-ietf-oauth-json-web-token-30#section-6>).
 --      This is supported by the decode function 'decode'.
 --      As a client you don't care about signing or encrypting so you only get back a 'JWT' 'UnverifiedJWT'.
 --      I.e. the type makes it clear that no signature verification was attempted.
