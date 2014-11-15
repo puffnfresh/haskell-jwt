@@ -122,9 +122,9 @@ case_encodeDecodeJWT = do
     }
         key = secret "secret-key"
         mJwt = decode $ encodeSigned HS256 key cs
-    let (Just unverified) = mJwt
-    cs @=? claims unverified
-    Just now @=? fmap secondsSinceEpoch (iat (claims unverified))
+    let (Just claims') = fmap claims mJwt
+    cs @=? claims'
+    Just now @=? fmap secondsSinceEpoch (iat claims')
 
 case_tokenIssuer = do
     let iss' = stringOrURI "Foo"
