@@ -50,6 +50,7 @@ module Web.JWT
     -- ** JWT claims set
     , intDate
     , stringOrURI
+    , stringOrURIToText
     , secondsSinceEpoch
     -- ** JWT header
     , typ
@@ -348,9 +349,17 @@ intDate i = Just $ IntDate $ round i
 -- | Convert a `T.Text` into a 'StringOrURI`. Returns a Nothing if the
 -- String cannot be converted (e.g. if the String contains a ':' but is
 -- *not* a valid URI).
-stringOrURI :: T.Text -> Maybe  StringOrURI
+stringOrURI :: T.Text -> Maybe StringOrURI
 stringOrURI t | URI.isURI $ T.unpack t = U <$> URI.parseURI (T.unpack t)
 stringOrURI t = Just (S t)
+
+
+-- | Convert a `StringOrURI` into a `T.Text`. Returns the T.Text
+-- representing the String as-is or a Text representation of the URI
+-- otherwise.
+stringOrURIToText :: StringOrURI -> T.Text
+stringOrURIToText (S t) = t
+stringOrURIToText (U uri) = T.pack $ URI.uriToString id uri (""::String)
 
 -- =================================================================================
 

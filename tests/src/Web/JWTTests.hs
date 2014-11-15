@@ -153,6 +153,13 @@ prop_stringOrURIProp = f
           f sou = let s = stringOrURI $ T.pack $ show sou
                   in Just sou == s
 
+prop_stringOrURIToText= f
+    where f :: T.Text -> Bool
+          f t = let mSou = stringOrURI t
+                in case mSou of
+                       Just sou -> stringOrURIToText sou == t
+                       Nothing  -> True
+
 prop_encode_decode_prop = f
     where f :: JWTClaimsSet -> Bool
           f claims' = let Just unverified = (decode $ encodeSigned HS256 (secret "secret") claims')
