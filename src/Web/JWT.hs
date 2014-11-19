@@ -458,9 +458,11 @@ instance FromJSON StringOrURI where
 
 instance ToJSON a => ToJSON (NonEmpty a) where
     toJSON = toJSON . NEL.toList
+    {-# INLINE toJSON #-}
 
 instance FromJSON a => FromJSON (NonEmpty a) where
     parseJSON = JSON.withArray "NonEmptyList a" $ (<$>) NEL.fromList . mapM parseJSON . VECTOR.toList
+    {-# INLINE parseJSON #-}
 
 -- $docDecoding
 -- There are three use cases supported by the set of decoding/verification
