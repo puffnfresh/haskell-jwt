@@ -85,10 +85,13 @@ import           Data.Aeson                 hiding (decode, encode)
 import qualified Data.Aeson                 as JSON
 import           Data.Default
 import qualified Data.HashMap.Strict        as StrictMap
+import           Data.List.NonEmpty         (NonEmpty)
+import qualified Data.List.NonEmpty         as NEL
 import qualified Data.Map                   as Map
 import           Data.Maybe
 import           Data.Scientific
 import           Data.Time.Clock            (NominalDiffTime)
+import qualified Data.Vector                as VECTOR
 import qualified Network.URI                as URI
 import           Web.Base64
 import           Prelude                    hiding (exp)
@@ -186,7 +189,7 @@ data JWTClaimsSet = JWTClaimsSet {
   , sub                :: Maybe StringOrURI
 
     -- | The aud (audience) claim identifies the audiences that the JWT is intended for
-  , aud                :: Maybe StringOrURI
+  , aud                :: Maybe (NonEmpty StringOrURI)
 
     -- | The exp (expiration time) claim identifies the expiration time on or after which the JWT MUST NOT be accepted for processing. Its value MUST be a number containing an IntDate value.
   , exp                :: Maybe IntDate
@@ -452,6 +455,12 @@ instance FromJSON StringOrURI where
     parseJSON (String s) | URI.isURI $ T.unpack s = return $ U $ fromMaybe URI.nullURI $ URI.parseURI $ T.unpack s
     parseJSON (String s) = return $ S s
     parseJSON _          = mzero
+
+instance ToJSON a => ToJSON (NonEmpty a) where
+    toJSON = toJSON . NEL.toList
+
+instance FromJSON a => FromJSON (NonEmpty a) where
+    parseJSON = JSON.withArray "NonEmptyList a" $ (<$>) NEL.fromList . mapM parseJSON . VECTOR.toList
 
 -- $docDecoding
 -- There are three use cases supported by the set of decoding/verification

@@ -15,6 +15,7 @@ import qualified Test.QuickCheck as QC
 import qualified Data.Map              as Map
 import qualified Data.Text             as T
 import qualified Data.Text.Lazy        as TL
+import           Data.List.NonEmpty    (NonEmpty((:|)))
 import           Data.Aeson.Types
 import           Data.Maybe
 import           Data.String (fromString, IsString)
@@ -204,3 +205,6 @@ instance Arbitrary T.Text where
 
 instance Arbitrary TL.Text where
     arbitrary = fromString <$> (arbitrary :: QC.Gen String)
+
+instance Arbitrary a => Arbitrary (NonEmpty a) where
+    arbitrary = (:|) <$> arbitrary <*> arbitrary

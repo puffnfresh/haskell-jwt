@@ -46,6 +46,8 @@ library
                      , data-default             >= 0.5
                      , http-types               >= 0.8
                      , time                     >= 1.1
+                     , vector                   >= 0.7.1
+                     , semigroups               >= 0.15.4
 
   if flag(network-uri)
     build-depends:     network-uri          >= 2.6
@@ -86,6 +88,8 @@ test-suite testsuite
                      , data-default
                      , http-types
                      , time                     >= 1.1
+                     , vector                   >= 0.7.1
+                     , semigroups               >= 0.15.4
 
   if flag(network-uri)
     build-depends:     network-uri          >= 2.6
