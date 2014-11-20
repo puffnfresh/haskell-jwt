@@ -48,6 +48,7 @@ module Web.JWT
     , header
     , signature
     -- ** JWT claims set
+    , auds
     , intDate
     , stringOrURI
     , stringOrURIToText
@@ -185,8 +186,8 @@ data JWTClaimsSet = JWTClaimsSet {
     -- | The sub (subject) claim identifies the principal that is the subject of the JWT.
   , sub                :: Maybe StringOrURI
 
-    -- | The aud (audience) claim identifies the audiences that the JWT is intended for
-  , aud                :: [StringOrURI]
+    -- | The aud (audience) claim identifies the audiences that the JWT is intended for according to draft 18 of the JWT spec, the aud claim is option and may be present in singular or as a list.
+  , aud                :: Maybe (Either StringOrURI [StringOrURI])
 
     -- | The exp (expiration time) claim identifies the expiration time on or after which the JWT MUST NOT be accepted for processing. Its value MUST be a number containing an IntDate value.
   , exp                :: Maybe IntDate
@@ -206,7 +207,7 @@ data JWTClaimsSet = JWTClaimsSet {
 
 
 instance Default JWTClaimsSet where
-    def = JWTClaimsSet Nothing Nothing [] Nothing Nothing Nothing Nothing Map.empty
+    def = JWTClaimsSet Nothing Nothing Nothing Nothing Nothing Nothing Nothing Map.empty
 
 
 
@@ -361,6 +362,13 @@ stringOrURIToText :: StringOrURI -> T.Text
 stringOrURIToText (S t) = t
 stringOrURIToText (U uri) = T.pack $ URI.uriToString id uri (""::String)
 
+-- | Convert the `aud` claim in a `JWTClaimsSet` into a `[StringOrURI]`
+auds :: JWTClaimsSet -> [StringOrURI]
+auds jwt = case aud jwt of
+    Nothing         -> []
+    Just (Left a)   -> [a]
+    Just (Right as) -> as
+
 -- =================================================================================
 
 encodeJWT :: ToJSON a => a -> T.Text
@@ -394,15 +402,12 @@ instance ToJSON JWTClaimsSet where
     toJSON JWTClaimsSet{..} = object $ catMaybes [
                   fmap ("iss" .=) iss
                 , fmap ("sub" .=) sub
-                , parseAud aud
+                , fmap ("aud" .=) aud
                 , fmap ("exp" .=) exp
                 , fmap ("nbf" .=) nbf
                 , fmap ("iat" .=) iat
                 , fmap ("jti" .=) jti
             ] ++ Map.toList (removeRegisteredClaims unregisteredClaims)
-                where
-                    parseAud []  = Nothing
-                    parseAud as  = Just ("aud" .= as)
 
 
 instance FromJSON JWTClaimsSet where
@@ -410,7 +415,7 @@ instance FromJSON JWTClaimsSet where
                      (\o -> JWTClaimsSet
                      <$> o .:? "iss"
                      <*> o .:? "sub"
-                     <*> (fromMaybe [] <$> o .:? "aud")
+                     <*> o .:? "aud"
                      <*> o .:? "exp"
                      <*> o .:? "nbf"
                      <*> o .:? "iat"
