@@ -191,7 +191,7 @@ instance Arbitrary NominalDiffTime where
     shrink    = shrinkRealFrac
 
 instance Arbitrary StringOrURI where
-    arbitrary = fmap (f . stringOrURI) (suchThat arbitrary (/= "") :: QC.Gen T.Text)
+    arbitrary = fmap (f . stringOrURI) (arbitrary :: QC.Gen T.Text)
         where
             f = fromMaybe (fromJust $ stringOrURI "http://example.com")
 
