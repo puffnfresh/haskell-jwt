@@ -15,13 +15,10 @@ import qualified Test.QuickCheck as QC
 import qualified Data.Map              as Map
 import qualified Data.Text             as T
 import qualified Data.Text.Lazy        as TL
-import           Data.List.NonEmpty    (NonEmpty((:|)))
 import           Data.Aeson.Types
 import           Data.Maybe
 import           Data.String (fromString, IsString)
 import           Data.Time
-
-
 import           Web.JWT
 
 defaultTestGroup :: TestTree
@@ -29,8 +26,6 @@ defaultTestGroup = $(testGroupGenerator)
 
 main :: IO ()
 main = defaultMain defaultTestGroup
-
-
 
 case_stringOrURIString = do
     let str = "foo bar baz 2312j!@&^#^*!(*@"
@@ -196,7 +191,7 @@ instance Arbitrary NominalDiffTime where
     shrink    = shrinkRealFrac
 
 instance Arbitrary StringOrURI where
-    arbitrary = fmap (f . stringOrURI) (arbitrary :: QC.Gen T.Text)
+    arbitrary = fmap (f . stringOrURI) (suchThat arbitrary (/= "") :: QC.Gen T.Text)
         where
             f = fromMaybe (fromJust $ stringOrURI "http://example.com")
 
@@ -205,6 +200,3 @@ instance Arbitrary T.Text where
 
 instance Arbitrary TL.Text where
     arbitrary = fromString <$> (arbitrary :: QC.Gen String)
-
-instance Arbitrary a => Arbitrary (NonEmpty a) where
-    arbitrary = (:|) <$> arbitrary <*> arbitrary
