@@ -48,6 +48,7 @@ module Web.JWT
     , header
     , signature
     -- ** JWT claims set
+    , auds
     , intDate
     , stringOrURI
     , stringOrURIToText
@@ -185,8 +186,8 @@ data JWTClaimsSet = JWTClaimsSet {
     -- | The sub (subject) claim identifies the principal that is the subject of the JWT.
   , sub                :: Maybe StringOrURI
 
-    -- | The aud (audience) claim identifies the audiences that the JWT is intended for
-  , aud                :: Maybe StringOrURI
+    -- | The aud (audience) claim identifies the audiences that the JWT is intended for according to draft 18 of the JWT spec, the aud claim is option and may be present in singular or as a list.
+  , aud                :: Maybe (Either StringOrURI [StringOrURI])
 
     -- | The exp (expiration time) claim identifies the expiration time on or after which the JWT MUST NOT be accepted for processing. Its value MUST be a number containing an IntDate value.
   , exp                :: Maybe IntDate
@@ -361,6 +362,13 @@ stringOrURIToText :: StringOrURI -> T.Text
 stringOrURIToText (S t) = t
 stringOrURIToText (U uri) = T.pack $ URI.uriToString id uri (""::String)
 
+-- | Convert the `aud` claim in a `JWTClaimsSet` into a `[StringOrURI]`
+auds :: JWTClaimsSet -> [StringOrURI]
+auds jwt = case aud jwt of
+    Nothing         -> []
+    Just (Left a)   -> [a]
+    Just (Right as) -> as
+
 -- =================================================================================
 
 encodeJWT :: ToJSON a => a -> T.Text
@@ -413,7 +421,6 @@ instance FromJSON JWTClaimsSet where
                      <*> o .:? "iat"
                      <*> o .:? "jti"
                      <*> pure (removeRegisteredClaims $ fromHashMap o))
-
 
 
 instance FromJSON JWTHeader where

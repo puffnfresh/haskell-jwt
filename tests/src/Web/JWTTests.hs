@@ -19,8 +19,6 @@ import           Data.Aeson.Types
 import           Data.Maybe
 import           Data.String (fromString, IsString)
 import           Data.Time
-
-
 import           Web.JWT
 
 defaultTestGroup :: TestTree
@@ -28,8 +26,6 @@ defaultTestGroup = $(testGroupGenerator)
 
 main :: IO ()
 main = defaultMain defaultTestGroup
-
-
 
 case_stringOrURIString = do
     let str = "foo bar baz 2312j!@&^#^*!(*@"
