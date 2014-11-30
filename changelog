@@ -1,3 +1,11 @@
+2014-12-01 0.5.0
+================
+
+	* Rev. 17 of the JWT Draft changed the audience claim from being an
+	optional String to being either an optional `StringOrURI`s or an optional list of
+	`StringOrURI`s. Thanks to Aaron Levin for reporting and implementing the
+	change. This change breaks backwards compatibility (in regard to 0.4.x).
+
 2014-10-15 0.4.2
 ================
 
