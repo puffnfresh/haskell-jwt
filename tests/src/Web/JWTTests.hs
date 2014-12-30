@@ -143,6 +143,27 @@ case_encodeDecodeJWTClaimsSetCustomClaims = do
         jwt = decodeAndVerifySignature secret' $ encodeSigned HS256 secret' cs
     Just cs @=? fmap claims jwt
 
+case_encodeDecodeJWTClaimsSetWithSingleAud = do
+    let now = 1234
+        cs = def {
+            iss = stringOrURI "Foo"
+          , aud = Left <$> stringOrURI "single-audience"
+          , iat = intDate now
+        }
+    let secret' = secret "secret"
+        jwt = decodeAndVerifySignature secret' $ encodeSigned HS256 secret' cs
+    Just cs @=? fmap claims jwt
+
+case_encodeDecodeJWTClaimsSetWithMultipleAud = do
+    let now = 1234
+        cs = def {
+            iss = stringOrURI "Foo"
+          , aud = Right <$> (:[]) <$> stringOrURI "audience"
+          , iat = intDate now
+        }
+    let secret' = secret "secret"
+        jwt = decodeAndVerifySignature secret' $ encodeSigned HS256 secret' cs
+    Just cs @=? fmap claims jwt
 
 prop_stringOrURIProp = f
     where f :: StringOrURI -> Bool
