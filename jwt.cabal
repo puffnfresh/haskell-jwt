@@ -75,6 +75,8 @@ test-suite testsuite
                      , tasty-th >= 0.1
                      , tasty-hunit >= 0.4
                      , tasty-quickcheck >= 0.3
+                     , lens-aeson
+                     , lens
                      , HUnit
                      , QuickCheck >= 2.4.0.1
                      , cryptohash
