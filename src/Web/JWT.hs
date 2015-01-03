@@ -402,7 +402,7 @@ instance ToJSON JWTClaimsSet where
     toJSON JWTClaimsSet{..} = object $ catMaybes [
                   fmap ("iss" .=) iss
                 , fmap ("sub" .=) sub
-                , fmap ("aud" .=) aud
+                , either ("aud" .=) ("aud" .=) <$> aud
                 , fmap ("exp" .=) exp
                 , fmap ("nbf" .=) nbf
                 , fmap ("iat" .=) iat
@@ -415,7 +415,10 @@ instance FromJSON JWTClaimsSet where
                      (\o -> JWTClaimsSet
                      <$> o .:? "iss"
                      <*> o .:? "sub"
-                     <*> o .:? "aud"
+                     <*> case StrictMap.lookup "aud" o of
+                         (Just as@(JSON.Array _)) -> Just <$> Right <$> parseJSON as
+                         (Just (JSON.String t))   -> pure $ Left <$> stringOrURI t
+                         _                        -> pure Nothing
                      <*> o .:? "exp"
                      <*> o .:? "nbf"
                      <*> o .:? "iat"
