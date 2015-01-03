@@ -1,3 +1,11 @@
+2015-01-03 0.5.1
+================
+
+	* Fix the encoding of the `aud` part of the claim.
+	  Thanks to Aaron Levin for reporting and implementing the change.
+	  In addition to the fix we now also verify the shape fo the generated
+	  payload.
+
 2014-12-01 0.5.0
 ================
 
