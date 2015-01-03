@@ -1,0 +1,12 @@
+session_name: haskell-jwt
+windows:
+  - window_name: main
+    layout: main-horizontal
+    options:
+        main-pane-height: 30
+    panes:
+      - shell_command:
+          - vim .
+        focus: true 
+      - cabal repl
+      - spy run "doctest" *.hs
