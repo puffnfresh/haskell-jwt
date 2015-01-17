@@ -1,3 +1,11 @@
+2015-01-17 0.5.2
+================
+
+	* Tim McLean pointed out that comparing signatures may be susceptible to
+	  a timing attack in the way the signatures were compared (using the default
+	  Eq instance). Both `Signature` and `Secret` now have an `Eq` instance that
+	  uses a constant time comparison function. Thanks Tim for reporting this.
+
 2015-01-03 0.5.1
 ================
 
