@@ -76,6 +76,7 @@ module Web.JWT
 import qualified Data.ByteString.Lazy.Char8 as BL (fromStrict, toStrict)
 import qualified Data.Text                  as T
 import qualified Data.Text.Encoding         as TE
+import qualified Data.Text.Additions        as TA
 
 import           Control.Applicative
 import           Control.Monad
@@ -97,9 +98,18 @@ import           Prelude                    hiding (exp)
 type JSON = T.Text
 
 -- | The secret used for calculating the message signature
-newtype Secret = Secret T.Text deriving (Eq, Show)
+newtype Secret = Secret T.Text
 
-newtype Signature = Signature T.Text deriving (Eq, Show)
+instance Eq Secret where
+    (Secret s1) == (Secret s2) = s1 `TA.constTimeCompare` s2
+
+instance Show Secret where
+    show _ = "<secret>"
+
+newtype Signature = Signature T.Text deriving (Show)
+
+instance Eq Signature where
+    (Signature s1) == (Signature s2) = s1 `TA.constTimeCompare` s2
 
 -- | JSON Web Token without signature verification
 data UnverifiedJWT
