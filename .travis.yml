@@ -35,7 +35,7 @@ script:
       tar xf "$SRC_TGZ";
       cd $SRC_DIR;
       cabal configure --enable-tests;
-      exec cabal test;
+      exec cabal test --show-details=always;
    else
       echo "expected '$SRC_TGZ' not found";
       exit 1;
