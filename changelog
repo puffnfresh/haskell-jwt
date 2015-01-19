@@ -1,3 +1,10 @@
+2015-01-19 0.5.3
+================
+
+	* Add the missing `other-modules` field to the .cabal file so that 
+	  all the tests are present in the source distribution. Thanks to 
+	  Richard Wallace for reporting this.
+
 2015-01-17 0.5.2
 ================
 

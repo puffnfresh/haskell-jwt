@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                jwt
-version:             0.5.2
+version:             0.5.3
 synopsis:            JSON Web Token (JWT) decoding and encoding
 license:             MIT
 license-file:        LICENSE
