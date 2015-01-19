@@ -68,6 +68,8 @@ test-suite testsuite
   default-language:    Haskell2010
   type:                exitcode-stdio-1.0
   main-is:             TestRunner.hs
+  -- Make sure the tests are listed here so that they will be part of the source distribution
+  other-modules:       Web.Base64Tests, Web.JWTInteropTests, Web.JWTTests, Data.Text.AdditionsTests
   hs-source-dirs:      tests/src, src
   build-depends:       base < 5 && >= 4.4
                      , tasty >= 0.7
