@@ -2,7 +2,6 @@
 env:
  - CABALVER=1.18 GHCVER=7.6.3
  - CABALVER=1.18 GHCVER=7.8.3
- - CABALVER=1.22 GHCVER=7.10.1
 
 # Note: the distinction between `before_install` and `install` is not important.
 before_install:
@@ -29,11 +28,16 @@ script:
 
 # The following scriptlet checks that the resulting source distribution can be built & installed
  - export SRC_TGZ=$(cabal info . | awk '{print $2 ".tar.gz";exit}') ;
+   export SRC_DIR=$(cabal info . | awk '{print $2}');
    cd dist/;
    if [ -f "$SRC_TGZ" ]; then
       cabal install --force-reinstalls "$SRC_TGZ";
-      # Ensure the source distribution tests work
+      tar xf "$SRC_TGZ";
+      cd $SRC_DIR;
+      cabal configure --enable-tests;
+      exec cabal test;
    else
       echo "expected '$SRC_TGZ' not found";
       exit 1;
-   fi
+   fi;
+
