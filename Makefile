@@ -25,14 +25,13 @@ dependencies:
 			cabal install --only-dependencies
 
 test-setup:
-			cabal install --only-dependencies --enable-tests
+			cabal install --only-dependencies --enable-tests --flags=doctests
 
-test-compile:
-			cabal clean
-			cabal configure --enable-tests
+test-compile: 
+			cabal configure --enable-tests --flags=doctests
 			cabal build
 
-test:
+test: test-compile
 			cabal test --show-details=always
 
 doctest:

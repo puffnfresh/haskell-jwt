@@ -31,6 +31,10 @@ flag network-uri
     description: Get Network.URI from the network-uri package
     default: True
 
+flag doctests
+    description: Run the doctests tests when executing 'cabal test'
+    default: False
+
 library
   exposed-modules:     Web.JWT
   other-modules:       Web.Base64, Data.Text.Additions
@@ -106,7 +110,10 @@ test-suite doctests
   default-language:    Haskell2010
   type:                exitcode-stdio-1.0
   main-is:             doctests.hs
-  ghc-options:         -XOverloadedStrings
-  build-depends:       base < 5 && >= 4.4
+  if flag(doctests)
+    buildable: True
+    build-depends:     base < 5 && >= 4.4
                      , jwt
                      , doctest     >= 0.9.11
+  else
+    buildable: False
