@@ -75,9 +75,8 @@ module Web.JWT
     ) where
 
 import qualified Data.ByteString.Lazy.Char8 as BL (fromStrict, toStrict)
-import qualified Data.Text                  as T
+import qualified Data.Text.Extended         as T
 import qualified Data.Text.Encoding         as TE
-import qualified Data.Text.Additions        as TA
 
 import           Control.Applicative
 import           Control.Monad
@@ -102,7 +101,7 @@ type JSON = T.Text
 newtype Secret = Secret T.Text
 
 instance Eq Secret where
-    (Secret s1) == (Secret s2) = s1 `TA.constTimeCompare` s2
+    (Secret s1) == (Secret s2) = s1 `T.constTimeCompare` s2
 
 instance Show Secret where
     show _ = "<secret>"
@@ -110,7 +109,7 @@ instance Show Secret where
 newtype Signature = Signature T.Text deriving (Show)
 
 instance Eq Signature where
-    (Signature s1) == (Signature s2) = s1 `TA.constTimeCompare` s2
+    (Signature s1) == (Signature s2) = s1 `T.constTimeCompare` s2
 
 -- | JSON Web Token without signature verification
 data UnverifiedJWT

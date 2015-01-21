@@ -37,7 +37,7 @@ flag doctests
 
 library
   exposed-modules:     Web.JWT
-  other-modules:       Web.Base64, Data.Text.Additions
+  other-modules:       Web.Base64, Data.Text.Extended
   build-depends:       base >= 4.6 && < 4.8
                      , cryptohash               >= 0.11
                      , base64-bytestring        >= 1.0
@@ -73,7 +73,7 @@ test-suite testsuite
   type:                exitcode-stdio-1.0
   main-is:             TestRunner.hs
   -- Make sure the tests are listed here so that they will be part of the source distribution
-  other-modules:       Web.Base64Tests, Web.JWTInteropTests, Web.JWTTests, Data.Text.AdditionsTests
+  other-modules:       Web.Base64Tests, Web.JWTInteropTests, Web.JWTTests, Data.Text.ExtendedTests
   hs-source-dirs:      tests/src, src
   build-depends:       base < 5 && >= 4.4
                      , tasty >= 0.7
