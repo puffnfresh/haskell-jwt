@@ -69,6 +69,29 @@ case_decodeAndVerifyJWT = do
     Just HS256 @=? alg (header verified)
     Just "payload" @=? Map.lookup "some" (unregisteredClaims $ claims verified)
 
+-- It must be impossible to get a VerifiedJWT if alg is "none"
+case_decodeAndVerifyJWTAlgoNone = do
+    {-
+    - Header:
+            {
+              "alg": "none",
+              "typ": "JWT"
+            }
+      Payload:
+            {
+              "iss": "https://jwt-idp.example.com",
+              "sub": "mailto:mike@example.com",
+              "nbf": 1425980755,
+              "exp": 1425984355,
+              "iat": 1425980755,
+              "jti": "id123456",
+              "typ": "https://example.com/register"
+            }
+    -}
+    let input = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJpc3MiOiJodHRwczovL2p3dC1pZHAuZXhhbXBsZS5jb20iLCJzdWIiOiJtYWlsdG86bWlrZUBleGFtcGxlLmNvbSIsIm5iZiI6MTQyNTk4MDc1NSwiZXhwIjoxNDI1OTg0MzU1LCJpYXQiOjE0MjU5ODA3NTUsImp0aSI6ImlkMTIzNDU2IiwidHlwIjoiaHR0cHM6Ly9leGFtcGxlLmNvbS9yZWdpc3RlciJ9."
+        mJwt = decodeAndVerifySignature (secret "secretkey") input
+    False @=? isJust mJwt
+
 case_decodeAndVerifyJWTFailing = do
     -- Generated with ruby-jwt, modified to be invalid
     let input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2u"

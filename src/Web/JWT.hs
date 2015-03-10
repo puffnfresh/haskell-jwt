@@ -393,7 +393,7 @@ dotted = T.intercalate "."
 -- =================================================================================
 
 calculateDigest :: Algorithm -> Secret -> T.Text -> T.Text
-calculateDigest _ (Secret key) msg = base64Encode' $ HMAC.hmac SHA.hash 64 (bs key) (bs msg)
+calculateDigest HS256 (Secret key) msg = base64Encode' $ HMAC.hmac SHA.hash 64 (bs key) (bs msg)
     where bs = TE.encodeUtf8
 
 -- =================================================================================
