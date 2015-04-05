@@ -222,7 +222,6 @@ instance Arbitrary JWTClaimsSet where
                              <*> arbitrary
                              <*> arbitrary
 
-type ClaimsMap = Map.Map T.Text Value
 instance Arbitrary ClaimsMap where
     arbitrary = return Map.empty
 

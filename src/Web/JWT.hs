@@ -67,6 +67,7 @@ module Web.JWT
     , JSON
     , Algorithm(..)
     , JWTClaimsSet(..)
+    , ClaimsMap
     , IntDate
     , StringOrURI
     , JWTHeader
