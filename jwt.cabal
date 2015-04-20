@@ -12,7 +12,7 @@ homepage:            https://bitbucket.org/ssaasen/haskell-jwt
 bug-reports:         https://bitbucket.org/ssaasen/haskell-jwt/issues
 category:            Web
 build-type:          Simple
-cabal-version:       >=1.18
+cabal-version:       >=1.16
 description:
 
     JSON Web Token (JWT) is a compact URL-safe means of representing claims to be transferred between two parties.
