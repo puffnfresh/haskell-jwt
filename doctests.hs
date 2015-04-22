@@ -1,4 +1,1 @@
-import           Test.DocTest
-
-main :: IO ()
-main = doctest ["-XOverloadedStrings", "-isrc", "src/Web/JWT.hs"]
+{-# OPTIONS_GHC -F -pgmF doctest-discover #-}
