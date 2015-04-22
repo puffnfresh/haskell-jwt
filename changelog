@@ -1,3 +1,13 @@
+2015-04-22 0.6.0
+================
+
+	* Execute doctests in addition to the testsuite when using 'make test'.
+	* Export `ClaimsMap` type alias (fixes #12)
+	* Allow base 4.8
+	* Lowered required cabal library version (to 1.16) to workaround build
+	  issues in a consumer project.
+	* Add 7.10.1 to the travis config
+
 2015-01-19 0.5.3
 ================
 
