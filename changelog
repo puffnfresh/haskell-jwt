@@ -1,3 +1,15 @@
+2016-02-20 0.7.0
+================
+
+	* Update JWT to match RFC 7519. This is a backward compatible change with
+	deprecation warnings added for types and functions to be removed in the
+	future.
+		* Add NumericDate as a replacement for IntDate (and numericDate as a 
+		  replacement for intDate)
+		* Add JOSEHeader as a replacement for JWTHeader.
+	* Use Stack and LTS 3.6
+
+
 2015-04-22 0.6.0
 ================
 

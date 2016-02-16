@@ -37,12 +37,10 @@ case_stringOrURI= do
         sou = stringOrURI str
     Just str @=? fmap (T.pack . show) sou
 
-
-case_intDateDeriveOrd = do
-    let i1 = intDate 1231231231 -- Tue  6 Jan 2009 19:40:31 AEDT
-        i2 = intDate 1231232231 -- Tue  6 Jan 2009 19:57:11 AEDT
+case_numericDateDeriveOrd = do
+    let i1 = numericDate 1231231231 -- Tue  6 Jan 2009 19:40:31 AEDT
+        i2 = numericDate 1231232231 -- Tue  6 Jan 2009 19:57:11 AEDT
     LT @=? i1 `compare` i2
-
 
 case_decodeJWT = do
     -- Generated with ruby-jwt
@@ -136,7 +134,7 @@ case_encodeDecodeJWT = do
     let now = 1394573404
         cs = def {
         iss = stringOrURI "Foo"
-      , iat = intDate now
+      , iat = numericDate now
       , unregisteredClaims = Map.fromList [("http://example.com/is_root", Bool True)]
     }
         key = secret "secret-key"
@@ -159,7 +157,7 @@ case_encodeDecodeJWTClaimsSetCustomClaims = do
     let now = 1234
         cs = def {
         iss = stringOrURI "Foo"
-      , iat = intDate now
+      , iat = numericDate now
       , unregisteredClaims = Map.fromList [("http://example.com/is_root", Bool True)]
     }
     let secret' = secret "secret"
@@ -171,7 +169,7 @@ case_encodeDecodeJWTClaimsSetWithSingleAud = do
         cs = def {
             iss = stringOrURI "Foo"
           , aud = Left <$> stringOrURI "single-audience"
-          , iat = intDate now
+          , iat = numericDate now
         }
     let secret' = secret "secret"
         jwt = decodeAndVerifySignature secret' $ encodeSigned HS256 secret' cs
@@ -182,7 +180,7 @@ case_encodeDecodeJWTClaimsSetWithMultipleAud = do
         cs = def {
             iss = stringOrURI "Foo"
           , aud = Right <$> (:[]) <$> stringOrURI "audience"
-          , iat = intDate now
+          , iat = numericDate now
         }
     let secret' = secret "secret"
         jwt = decodeAndVerifySignature secret' $ encodeSigned HS256 secret' cs
@@ -225,9 +223,9 @@ instance Arbitrary JWTClaimsSet where
 instance Arbitrary ClaimsMap where
     arbitrary = return Map.empty
 
-instance Arbitrary IntDate where
-    arbitrary = fmap (f . intDate) (arbitrary :: QC.Gen NominalDiffTime)
-        where f = fromMaybe (fromJust $ intDate 1)
+instance Arbitrary NumericDate where
+    arbitrary = fmap (f . numericDate) (arbitrary :: QC.Gen NominalDiffTime)
+        where f = fromMaybe (fromJust $ numericDate 1)
 
 instance Arbitrary NominalDiffTime where
     arbitrary = arbitrarySizedFractional

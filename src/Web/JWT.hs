@@ -12,7 +12,7 @@ License:     MIT
 Maintainer:  Stefan Saasen <stefan@saasen.me>
 Stability:   experimental
 
-This implementation of JWT is based on <http://tools.ietf.org/html/draft-ietf-oauth-json-web-token-30> (Version 30)
+This implementation of JWT is based on <https://tools.ietf.org/html/rfc7519>
 but currently only implements the minimum required to work with the Atlassian Connect framework.
 
 Known limitations:
@@ -23,9 +23,6 @@ Known limitations:
    ('exp', 'nbf', 'iat').
 
    * Registered claims are not validated
-
-   * This implementation uses the term `JWTHeader` instead of `JOSEHeader` (changed in version 23 of the JWT draft).
-     Future versions will move to the offical term once that has stabilised.
 -}
 module Web.JWT
     (
@@ -50,6 +47,7 @@ module Web.JWT
     -- ** JWT claims set
     , auds
     , intDate
+    , numericDate
     , stringOrURI
     , stringOrURIToText
     , secondsSinceEpoch
@@ -69,8 +67,10 @@ module Web.JWT
     , JWTClaimsSet(..)
     , ClaimsMap
     , IntDate
+    , NumericDate
     , StringOrURI
     , JWTHeader
+    , JOSEHeader
 
     , module Data.Default
     ) where
@@ -97,6 +97,9 @@ import           Prelude                    hiding (exp)
 
 
 type JSON = T.Text
+
+{-# DEPRECATED JWTHeader "Use JOSEHeader instead. JWTHeader will be removed in 1.0" #-}
+type JWTHeader = JOSEHeader
 
 -- | The secret used for calculating the message signature
 newtype Secret = Secret T.Text
@@ -132,7 +135,7 @@ claims (Unverified _ c _ _) = c
 claims (Verified _ c _) = c
 
 -- | Extract the header from a JSON Web Token
-header :: JWT r -> JWTHeader
+header :: JWT r -> JOSEHeader
 header (Unverified h _ _ _) = h
 header (Verified h _ _) = h
 
@@ -143,11 +146,17 @@ signature (Verified _ _ s) = Just s
 
 -- | A JSON numeric value representing the number of seconds from
 -- 1970-01-01T0:0:0Z UTC until the specified UTC date/time.
-newtype IntDate = IntDate Integer deriving (Show, Eq, Ord)
+{-# DEPRECATED IntDate "Use NumericDate instead. IntDate will be removed in 1.0" #-}
+type IntDate = NumericDate
+
+-- | A JSON numeric value representing the number of seconds from
+-- 1970-01-01T0:0:0Z UTC until the specified UTC date/time.
+newtype NumericDate = NumericDate Integer deriving (Show, Eq, Ord)
+
 
 -- | Return the seconds since 1970-01-01T0:0:0Z UTC for the given 'IntDate'
-secondsSinceEpoch :: IntDate -> NominalDiffTime
-secondsSinceEpoch (IntDate s) = fromInteger s
+secondsSinceEpoch :: NumericDate -> NominalDiffTime
+secondsSinceEpoch (NumericDate s) = fromInteger s
 
 -- | A JSON string value, with the additional requirement that while
 -- arbitrary string values MAY be used, any value containing a ":"
@@ -160,12 +169,11 @@ instance Show StringOrURI where
     show (S s) = T.unpack s
     show (U u) = show u
 
-
 data Algorithm = HS256 -- ^ HMAC using SHA-256 hash algorithm
                  deriving (Eq, Show)
 
--- | JWT Header, describes the cryptographic operations applied to the JWT
-data JWTHeader = JWTHeader {
+-- | JOSE Header, describes the cryptographic operations applied to the JWT
+data JOSEHeader = JOSEHeader {
     -- | The typ (type) Header Parameter defined by [JWS] and [JWE] is used to
     -- declare the MIME Media Type [IANA.MediaTypes] of this complete JWT in
     -- contexts where this is useful to the application.
@@ -182,8 +190,8 @@ data JWTHeader = JWTHeader {
   , alg :: Maybe Algorithm
 } deriving (Eq, Show)
 
-instance Default JWTHeader where
-    def = JWTHeader Nothing Nothing Nothing
+instance Default JOSEHeader where
+    def = JOSEHeader Nothing Nothing Nothing
 
 -- | The JWT Claims Set represents a JSON object whose members are the claims conveyed by the JWT.
 data JWTClaimsSet = JWTClaimsSet {
@@ -220,8 +228,6 @@ instance Default JWTClaimsSet where
     def = JWTClaimsSet Nothing Nothing Nothing Nothing Nothing Nothing Nothing Map.empty
 
 
-
-
 -- | Encode a claims set using the given secret
 --
 -- >>> :{
@@ -249,7 +255,7 @@ encodeSigned algo secret claims = dotted [header, claim, signature]
 --  let
 --      cs = def { -- def returns a default JWTClaimsSet
 --      iss = stringOrURI "Foo"
---    , iat = intDate 1394700934
+--    , iat = numericDate 1394700934
 --    , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
 --  }
 --  in encodeUnsigned cs
@@ -262,7 +268,6 @@ encodeUnsigned claims = dotted [header, claim, ""]
                         typ = Just "JWT"
                       , alg = Just HS256
                       }
-
 
 -- | Decode a claims set without verifying the signature. This is useful if
 -- information from the claim set is required in order to verify the claim
@@ -353,9 +358,16 @@ secret = Secret
 -- | Convert the `NominalDiffTime` into an IntDate. Returns a Nothing if the
 -- argument is invalid (e.g. the NominalDiffTime must be convertible into a
 -- positive Integer representing the seconds since epoch).
+{-# DEPRECATED intDate "Use numericDate instead. intDate will be removed in 1.0" #-}
 intDate :: NominalDiffTime -> Maybe IntDate
-intDate i | i < 0 = Nothing
-intDate i = Just $ IntDate $ round i
+intDate = numericDate
+
+-- | Convert the `NominalDiffTime` into an NumericDate. Returns a Nothing if the
+-- argument is invalid (e.g. the NominalDiffTime must be convertible into a
+-- positive Integer representing the seconds since epoch).
+numericDate :: NominalDiffTime -> Maybe NumericDate
+numericDate i | i < 0 = Nothing
+numericDate i = Just $ NumericDate $ round i
 
 -- | Convert a `T.Text` into a 'StringOrURI`. Returns a Nothing if the
 -- String cannot be converted (e.g. if the String contains a ':' but is
@@ -437,24 +449,24 @@ instance FromJSON JWTClaimsSet where
 
 
 instance FromJSON JWTHeader where
-    parseJSON = withObject "JWTHeader"
-                    (\o -> JWTHeader
+    parseJSON = withObject "JOSEHeader"
+                    (\o -> JOSEHeader
                     <$> o .:? "typ"
                     <*> o .:? "cty"
                     <*> o .:? "alg")
 
-instance ToJSON JWTHeader where
-    toJSON JWTHeader{..} = object $ catMaybes [
+instance ToJSON JOSEHeader where
+    toJSON JOSEHeader{..} = object $ catMaybes [
                   fmap ("typ" .=) typ
                 , fmap ("cty" .=) cty
                 , fmap ("alg" .=) alg
             ]
 
-instance ToJSON IntDate where
-    toJSON (IntDate i) = Number $ scientific (fromIntegral i) 0
+instance ToJSON NumericDate where
+    toJSON (NumericDate i) = Number $ scientific (fromIntegral i) 0
 
-instance FromJSON IntDate where
-    parseJSON (Number x) = return $ IntDate $ coefficient x
+instance FromJSON NumericDate where
+    parseJSON (Number x) = return $ NumericDate $ coefficient x
     parseJSON _          = mzero
 
 instance ToJSON Algorithm where

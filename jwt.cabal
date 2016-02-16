@@ -69,6 +69,7 @@ test-suite testsuite
                      , Web.JWT
                      , Web.JWTInteropTests
                      , Web.JWTTests
+                     , Web.JWTTestsCompat
                      , Data.Text.Extended
                      , Data.Text.ExtendedTests
   hs-source-dirs:      tests/src, src

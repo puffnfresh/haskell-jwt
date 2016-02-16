@@ -81,9 +81,9 @@ instance Arbitrary JWTClaimsSet where
 instance Arbitrary ClaimsMap where
     arbitrary = return Map.empty
 
-instance Arbitrary IntDate where
-    arbitrary = fmap (f . intDate) (arbitrary :: QC.Gen NominalDiffTime)
-        where f = fromMaybe (fromJust $ intDate 1)
+instance Arbitrary NumericDate where
+    arbitrary = fmap (f . numericDate) (arbitrary :: QC.Gen NominalDiffTime)
+        where f = fromMaybe (fromJust $ numericDate 1)
 
 instance Arbitrary NominalDiffTime where
     arbitrary = arbitrarySizedFractional

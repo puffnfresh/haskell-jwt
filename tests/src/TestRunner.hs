@@ -1,6 +1,7 @@
 module Main where
 
 import qualified Web.JWTTests
+import qualified Web.JWTTestsCompat
 import qualified Web.JWTInteropTests
 import qualified Web.Base64Tests
 import qualified Data.Text.ExtendedTests
@@ -12,6 +13,7 @@ main = defaultMain tests
 tests :: TestTree
 tests = testGroup "JWT Tests" [
                     Web.JWTTests.defaultTestGroup
+                  , Web.JWTTestsCompat.defaultTestGroup
                   , Web.JWTInteropTests.defaultTestGroup
                   , Web.Base64Tests.defaultTestGroup
                   , Data.Text.ExtendedTests.defaultTestGroup
