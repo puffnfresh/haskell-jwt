@@ -5,7 +5,6 @@ module Data.Text.Extended (
   , constTimeCompare
 ) where
 
-import           Control.Applicative ((<$>))
 import           Data.Bits
 import           Data.Char
 import           Data.Function       (on)
