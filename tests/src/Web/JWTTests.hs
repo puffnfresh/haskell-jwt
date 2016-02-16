@@ -198,17 +198,16 @@ prop_stringOrURIToText= f
                        Just sou -> stringOrURIToText sou == t
                        Nothing  -> True
 
-prop_encode_decode_prop = f
-    where f :: JWTClaimsSet -> Bool
-          f claims' = let Just unverified = (decode $ encodeSigned HS256 (secret "secret") claims')
-                      in claims unverified == claims'
+prop_encode_decode = f
+    where f :: T.Text -> JWTClaimsSet -> Bool
+          f key claims' = let Just unverified = (decode $ encodeSigned HS256 (secret key) claims')
+                          in claims unverified == claims'
 
-prop_encode_decode_verify_signature_prop = f
-    where f :: JWTClaimsSet -> Bool
-          f claims' = let key = secret "secret"
-                          Just verified = (decodeAndVerifySignature key $ encodeSigned HS256 key claims')
-                      in claims verified == claims'
-
+prop_encode_decode_verify_signature = f
+    where f :: T.Text -> JWTClaimsSet -> Bool
+          f key' claims' = let key = secret key'
+                               Just verified = (decodeAndVerifySignature key $ encodeSigned HS256 key claims')
+                           in claims verified == claims'
 
 instance Arbitrary JWTClaimsSet where
     arbitrary = JWTClaimsSet <$> arbitrary
