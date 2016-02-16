@@ -10,7 +10,7 @@ It's not sufficient to just ensure that
 
 `fromJSON . toJSON = id`
 
-This would only verify that an isomorphism exists but wouldn't tests the specific shape we expect.
+This would only verify that an isomorphism exists but wouldn't test the specific shape we expect.
 
 While the above would be sufficent if the haskell-jwt library would be used on the sender and receiver side,
 interoperability couldn't be guaranteed. We need to ensure that the JSON conforms to the spec so that every
