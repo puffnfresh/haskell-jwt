@@ -1,0 +1,8 @@
+flags:
+  jwt:
+    doctests: false
+    network-uri: true
+packages:
+- '.'
+extra-deps: []
+resolver: lts-3.6

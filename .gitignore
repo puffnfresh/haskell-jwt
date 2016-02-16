@@ -1,6 +1,2 @@
-cabal.sandbox.config
-.cabal-sandbox
 tags
-
-# Cabal Build Directory
-/dist
+.stack-work
