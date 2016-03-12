@@ -34,10 +34,10 @@ flag doctests
 
 library
   exposed-modules:     Web.JWT
-  other-modules:       Web.Base64, Data.Text.Extended
+  other-modules:       Data.Text.Extended
   build-depends:       base >= 4.6 && < 4.9
-                     , cryptohash               >= 0.11
-                     , base64-bytestring        >= 1.0
+                     , cryptonite               >= 0.10
+                     , memory                   >= 0.10
                      , bytestring               >= 0.10
                      , text                     >= 0.11
                      , aeson                    >= 0.7
@@ -64,9 +64,7 @@ test-suite testsuite
   type:                exitcode-stdio-1.0
   main-is:             TestRunner.hs
   -- Make sure the tests are listed here so that they will be part of the source distribution
-  other-modules:       Web.Base64
-                     , Web.Base64Tests
-                     , Web.JWT
+  other-modules:       Web.JWT
                      , Web.JWTInteropTests
                      , Web.JWTTests
                      , Web.JWTTestsCompat
@@ -82,8 +80,8 @@ test-suite testsuite
                      , lens
                      , HUnit
                      , QuickCheck >= 2.4.0.1
-                     , cryptohash
-                     , base64-bytestring        >= 1.0
+                     , cryptonite
+                     , memory
                      , bytestring               >= 0.10
                      , text                     >= 0.11
                      , aeson
