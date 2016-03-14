@@ -81,8 +81,9 @@ import qualified Data.Text.Encoding         as TE
 
 import           Control.Applicative
 import           Control.Monad
-import qualified Crypto.Hash.SHA256         as SHA
-import qualified Crypto.MAC.HMAC            as HMAC
+import           Crypto.Hash.Algorithms
+import           Crypto.MAC.HMAC
+import           Data.ByteArray.Encoding
 import           Data.Aeson                 hiding (decode, encode)
 import qualified Data.Aeson                 as JSON
 import           Data.Default
@@ -92,7 +93,6 @@ import           Data.Maybe
 import           Data.Scientific
 import           Data.Time.Clock            (NominalDiffTime)
 import qualified Network.URI                as URI
-import           Web.Base64
 import           Prelude                    hiding (exp)
 
 
@@ -394,10 +394,12 @@ auds jwt = case aud jwt of
 -- =================================================================================
 
 encodeJWT :: ToJSON a => a -> T.Text
-encodeJWT = base64Encode . TE.decodeUtf8 . BL.toStrict . JSON.encode
+encodeJWT = TE.decodeUtf8 . convertToBase Base64URLUnpadded . BL.toStrict . JSON.encode
 
 parseJWT :: FromJSON a => T.Text -> Maybe a
-parseJWT = JSON.decode . BL.fromStrict . TE.encodeUtf8 . base64Decode
+parseJWT x = case convertFromBase Base64URLUnpadded $ TE.encodeUtf8 x of
+               Left _ -> Nothing
+               Right s -> JSON.decode $ BL.fromStrict s
 
 dotted :: [T.Text] -> T.Text
 dotted = T.intercalate "."
@@ -406,7 +408,7 @@ dotted = T.intercalate "."
 -- =================================================================================
 
 calculateDigest :: Algorithm -> Secret -> T.Text -> T.Text
-calculateDigest HS256 (Secret key) msg = base64Encode' $ HMAC.hmac SHA.hash 64 (bs key) (bs msg)
+calculateDigest HS256 (Secret key) msg = TE.decodeUtf8 $ convertToBase Base64URLUnpadded (hmac (bs key) (bs msg) :: HMAC SHA256)
     where bs = TE.encodeUtf8
 
 -- =================================================================================
