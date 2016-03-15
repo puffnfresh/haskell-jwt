@@ -6,7 +6,7 @@
 		* Add NumericDate as a replacement for IntDate (and numericDate as a 
 		  replacement for intDate)
 		* Add JOSEHeader as a replacement for JWTHeader.
-	* Use Stack and LTS 5.6
+	* Use Stack and LTS 4.0
     * Use cryptonite instead of cryptohash (Thanks to Greg V)
     * Remove Web.Base64 in favour of using `memory` (Thanks to Greg V)
 
