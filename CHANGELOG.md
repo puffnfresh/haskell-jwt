@@ -73,7 +73,6 @@
     * Fix hlint warnings
     * Add 'secondsSinceEpoch' to extract the seconds from epoch from an IntDate
 
-
 # 2014-03-10 0.2.0
 
 	* Export the IntDate and StringOrURI types #5a1137b
