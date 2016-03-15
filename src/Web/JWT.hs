@@ -304,7 +304,7 @@ decode input = do
     Unverified <$> header' <*> claims' <*> (pure . Signature $ s) <*> (pure . dotted $ [h,c])
     where
         extractElems (h:c:s:_) = Just (h,c,s)
-        extractElems _       = Nothing
+        extractElems _         = Nothing
 
 -- | Using a known secret and a decoded claims set verify that the signature is correct
 -- and return a verified JWT token as a result.
@@ -372,21 +372,21 @@ intDate = numericDate
 -- positive Integer representing the seconds since epoch).
 numericDate :: NominalDiffTime -> Maybe NumericDate
 numericDate i | i < 0 = Nothing
-numericDate i = Just $ NumericDate $ round i
+numericDate i         = Just $ NumericDate $ round i
 
 -- | Convert a `T.Text` into a 'StringOrURI`. Returns a Nothing if the
 -- String cannot be converted (e.g. if the String contains a ':' but is
 -- *not* a valid URI).
 stringOrURI :: T.Text -> Maybe StringOrURI
 stringOrURI t | URI.isURI $ T.unpack t = U <$> URI.parseURI (T.unpack t)
-stringOrURI t = Just (S t)
+stringOrURI t                          = Just (S t)
 
 
 -- | Convert a `StringOrURI` into a `T.Text`. Returns the T.Text
 -- representing the String as-is or a Text representation of the URI
 -- otherwise.
 stringOrURIToText :: StringOrURI -> T.Text
-stringOrURIToText (S t) = t
+stringOrURIToText (S t)   = t
 stringOrURIToText (U uri) = T.pack $ URI.uriToString id uri (""::String)
 
 -- | Convert the `aud` claim in a `JWTClaimsSet` into a `[StringOrURI]`
@@ -403,7 +403,7 @@ encodeJWT = TE.decodeUtf8 . convertToBase Base64URLUnpadded . BL.toStrict . JSON
 
 parseJWT :: FromJSON a => T.Text -> Maybe a
 parseJWT x = case convertFromBase Base64URLUnpadded $ TE.encodeUtf8 x of
-               Left _ -> Nothing
+               Left _  -> Nothing
                Right s -> JSON.decode $ BL.fromStrict s
 
 dotted :: [T.Text] -> T.Text
@@ -414,7 +414,8 @@ dotted = T.intercalate "."
 
 calculateDigest :: Algorithm -> Secret -> T.Text -> T.Text
 calculateDigest HS256 (Secret key) msg = TE.decodeUtf8 $ convertToBase Base64URLUnpadded (hmac (bs key) (bs msg) :: HMAC SHA256)
-    where bs = TE.encodeUtf8
+    where 
+        bs = TE.encodeUtf8
 
 -- =================================================================================
 
@@ -425,7 +426,8 @@ fromHashMap = Map.fromList . StrictMap.toList
 
 removeRegisteredClaims :: ClaimsMap -> ClaimsMap
 removeRegisteredClaims input = Map.differenceWithKey (\_ _ _ -> Nothing) input registeredClaims
-    where registeredClaims = Map.fromList $ map (\e -> (e, Null)) ["iss", "sub", "aud", "exp", "nbf", "iat", "jti"]
+    where 
+        registeredClaims = Map.fromList $ map (\e -> (e, Null)) ["iss", "sub", "aud", "exp", "nbf", "iat", "jti"]
 
 instance ToJSON JWTClaimsSet where
     toJSON JWTClaimsSet{..} = object $ catMaybes [
@@ -437,7 +439,6 @@ instance ToJSON JWTClaimsSet where
                 , fmap ("iat" .=) iat
                 , fmap ("jti" .=) jti
             ] ++ Map.toList (removeRegisteredClaims unregisteredClaims)
-
 
 instance FromJSON JWTClaimsSet where
         parseJSON = withObject "JWTClaimsSet"
@@ -453,7 +454,6 @@ instance FromJSON JWTClaimsSet where
                      <*> o .:? "iat"
                      <*> o .:? "jti"
                      <*> pure (removeRegisteredClaims $ fromHashMap o))
-
 
 instance FromJSON JOSEHeader where
     parseJSON = withObject "JOSEHeader"
@@ -484,13 +484,13 @@ instance FromJSON Algorithm where
     parseJSON _                = mzero
 
 instance ToJSON StringOrURI where
-    toJSON (S s) = String s
+    toJSON (S s)   = String s
     toJSON (U uri) = String $ T.pack $ URI.uriToString id uri ""
 
 instance FromJSON StringOrURI where
     parseJSON (String s) | URI.isURI $ T.unpack s = return $ U $ fromMaybe URI.nullURI $ URI.parseURI $ T.unpack s
-    parseJSON (String s) = return $ S s
-    parseJSON _          = mzero
+    parseJSON (String s)                          = return $ S s
+    parseJSON _                                   = mzero
 
 -- $docDecoding
 -- There are three use cases supported by the set of decoding/verification
