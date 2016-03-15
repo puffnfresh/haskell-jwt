@@ -1,6 +1,3 @@
-flags:
-  jwt:
-    doctests: false
 packages:
 - '.'
 extra-deps: []

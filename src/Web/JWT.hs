@@ -95,6 +95,11 @@ import           Data.Time.Clock            (NominalDiffTime)
 import qualified Network.URI                as URI
 import           Prelude                    hiding (exp)
 
+-- $setup
+-- The code examples in this module require GHC's `OverloadedStrings`
+-- extension:
+--
+-- >>> :set -XOverloadedStrings
 
 type JSON = T.Text
 
@@ -230,7 +235,7 @@ instance Default JWTClaimsSet where
 
 -- | Encode a claims set using the given secret
 --
--- >>> :{
+--  @
 --  let
 --      cs = def { -- def returns a default JWTClaimsSet
 --         iss = stringOrURI "Foo"
@@ -238,8 +243,8 @@ instance Default JWTClaimsSet where
 --      }
 --      key = secret "secret-key"
 --  in encodeSigned HS256 key cs
--- :}
--- "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.vHQHuG3ujbnBUmEp-fSUtYxk27rLiP2hrNhxpyWhb2E"
+-- @
+-- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.vHQHuG3ujbnBUmEp-fSUtYxk27rLiP2hrNhxpyWhb2E"
 encodeSigned :: Algorithm -> Secret -> JWTClaimsSet -> JSON
 encodeSigned algo secret claims = dotted [header, claim, signature]
     where claim     = encodeJWT claims
@@ -251,7 +256,7 @@ encodeSigned algo secret claims = dotted [header, claim, signature]
 
 -- | Encode a claims set without signing it
 --
--- >>> :{
+--  @
 --  let
 --      cs = def { -- def returns a default JWTClaimsSet
 --      iss = stringOrURI "Foo"
@@ -259,8 +264,8 @@ encodeSigned algo secret claims = dotted [header, claim, signature]
 --    , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
 --  }
 --  in encodeUnsigned cs
--- :}
--- "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjEzOTQ3MDA5MzQsImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlLCJpc3MiOiJGb28ifQ."
+--  @
+-- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjEzOTQ3MDA5MzQsImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlLCJpc3MiOiJGb28ifQ."
 encodeUnsigned :: JWTClaimsSet -> JSON
 encodeUnsigned claims = dotted [header, claim, ""]
     where claim     = encodeJWT claims
@@ -280,7 +285,7 @@ encodeUnsigned claims = dotted [header, claim, ""]
 --      mJwt = decode input
 --  in fmap header mJwt
 -- :}
--- Just (JWTHeader {typ = Just "JWT", cty = Nothing, alg = Just HS256})
+-- Just (JOSEHeader {typ = Just "JWT", cty = Nothing, alg = Just HS256})
 --
 -- and
 --
@@ -450,7 +455,7 @@ instance FromJSON JWTClaimsSet where
                      <*> pure (removeRegisteredClaims $ fromHashMap o))
 
 
-instance FromJSON JWTHeader where
+instance FromJSON JOSEHeader where
     parseJSON = withObject "JOSEHeader"
                     (\o -> JOSEHeader
                     <$> o .:? "typ"
