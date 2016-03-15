@@ -31,8 +31,8 @@ library
   exposed-modules:     Web.JWT
   other-modules:       Data.Text.Extended
   build-depends:       base >= 4.6 && < 4.9
-                     , cryptonite               >= 0.10
-                     , memory                   >= 0.10
+                     , cryptonite               >= 0.6
+                     , memory                   >= 0.8
                      , bytestring               >= 0.10
                      , text                     >= 0.11
                      , aeson                    >= 0.7
