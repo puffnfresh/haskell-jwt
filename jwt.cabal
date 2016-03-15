@@ -20,9 +20,8 @@ description:
     To get started, see the documentation for the "Web.JWT" module.
 
 extra-source-files:
-    changelog
+    CHANGELOG.md
     README.md
-    Makefile
 
 source-repository head
     type: git
