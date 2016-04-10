@@ -40,6 +40,7 @@ module Web.JWT
     -- ** Common
     , tokenIssuer
     , secret
+    , binarySecret
     -- ** JWT structure
     , claims
     , header
@@ -76,6 +77,7 @@ module Web.JWT
     ) where
 
 import qualified Data.ByteString.Lazy.Char8 as BL (fromStrict, toStrict)
+import qualified Data.ByteString.Extended as BS
 import qualified Data.Text.Extended         as T
 import qualified Data.Text.Encoding         as TE
 
@@ -107,10 +109,10 @@ type JSON = T.Text
 type JWTHeader = JOSEHeader
 
 -- | The secret used for calculating the message signature
-newtype Secret = Secret T.Text
+newtype Secret = Secret BS.ByteString
 
 instance Eq Secret where
-    (Secret s1) == (Secret s2) = s1 `T.constTimeCompare` s2
+    (Secret s1) == (Secret s2) = s1 `BS.constTimeCompare` s2
 
 instance Show Secret where
     show _ = "<secret>"
@@ -353,12 +355,14 @@ decodeAndVerifySignature secret' input = verify secret' =<< decode input
 tokenIssuer :: JSON -> Maybe StringOrURI
 tokenIssuer = decode >=> fmap pure claims >=> iss
 
--- | Create a Secret using the given key
--- This will currently simply wrap the given key appropriately buy may
--- return a Nothing in the future if the key needs to adhere to a specific
--- format and the given key is invalid.
+-- | Create a Secret using the given key.
+-- Consider using `binarySecret` instead if your key is not already a "Data.Text".
 secret :: T.Text -> Secret
-secret = Secret
+secret = Secret . TE.encodeUtf8
+
+-- | Create a Secret using the given key.
+binarySecret :: BS.ByteString -> Secret
+binarySecret = Secret
 
 -- | Convert the `NominalDiffTime` into an IntDate. Returns a Nothing if the
 -- argument is invalid (e.g. the NominalDiffTime must be convertible into a
@@ -413,7 +417,7 @@ dotted = T.intercalate "."
 -- =================================================================================
 
 calculateDigest :: Algorithm -> Secret -> T.Text -> T.Text
-calculateDigest HS256 (Secret key) msg = TE.decodeUtf8 $ convertToBase Base64URLUnpadded (hmac (bs key) (bs msg) :: HMAC SHA256)
+calculateDigest HS256 (Secret key) msg = TE.decodeUtf8 $ convertToBase Base64URLUnpadded (hmac key (bs msg) :: HMAC SHA256)
     where 
         bs = TE.encodeUtf8
 

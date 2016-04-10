@@ -22,6 +22,7 @@ description:
 extra-source-files:
     CHANGELOG.md
     README.md
+    tests/jwt.secret.1
 
 source-repository head
     type: git
@@ -29,7 +30,7 @@ source-repository head
 
 library
   exposed-modules:     Web.JWT
-  other-modules:       Data.Text.Extended
+  other-modules:       Data.Text.Extended, Data.ByteString.Extended
   build-depends:       base >= 4.6 && < 4.9
                      , cryptonite               >= 0.6
                      , memory                   >= 0.8

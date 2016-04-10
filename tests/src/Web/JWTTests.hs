@@ -14,7 +14,9 @@ import           Test.Tasty.QuickCheck
 import qualified Test.QuickCheck as QC
 import qualified Data.Map              as Map
 import qualified Data.Text             as T
+import qualified Data.Text.Encoding         as TE
 import qualified Data.Text.Lazy        as TL
+import qualified Data.ByteString as BS
 import           Data.Aeson.Types
 import           Data.Maybe
 import           Data.String (fromString, IsString)
@@ -186,6 +188,17 @@ case_encodeDecodeJWTClaimsSetWithMultipleAud = do
         jwt = decodeAndVerifySignature secret' $ encodeSigned HS256 secret' cs
     Just cs @=? fmap claims jwt
 
+case_encodeDecodeJWTClaimsSetBinarySecret = do
+    let now = 1234
+        cs = def {
+            iss = stringOrURI "Foo"
+          , iat = numericDate now
+        }
+    secretKey <- BS.readFile "tests/jwt.secret.1"
+    let secret' = binarySecret secretKey
+        jwt = decodeAndVerifySignature secret' $ encodeSigned HS256 secret' cs
+    Just cs @=? fmap claims jwt
+
 prop_stringOrURIProp = f
     where f :: StringOrURI -> Bool
           f sou = let s = stringOrURI $ T.pack $ show sou
@@ -203,11 +216,17 @@ prop_encode_decode = f
           f key claims' = let Just unverified = (decode $ encodeSigned HS256 (secret key) claims')
                           in claims unverified == claims'
 
+prop_encode_decode_binary_secret = f
+    where f :: BS.ByteString -> JWTClaimsSet -> Bool
+          f binary claims' = let Just unverified = (decode $ encodeSigned HS256 (binarySecret binary) claims')
+                          in claims unverified == claims'
+
 prop_encode_decode_verify_signature = f
     where f :: T.Text -> JWTClaimsSet -> Bool
           f key' claims' = let key = secret key'
                                Just verified = (decodeAndVerifySignature key $ encodeSigned HS256 key claims')
                            in claims verified == claims'
+
 
 instance Arbitrary JWTClaimsSet where
     arbitrary = JWTClaimsSet <$> arbitrary
@@ -234,6 +253,10 @@ instance Arbitrary StringOrURI where
     arbitrary = fmap (f . stringOrURI) (arbitrary :: QC.Gen T.Text)
         where
             f = fromMaybe (fromJust $ stringOrURI "http://example.com")
+
+instance Arbitrary BS.ByteString where
+    arbitrary = BS.pack <$> arbitrary
+    shrink xs = BS.pack <$> shrink (BS.unpack xs)
 
 instance Arbitrary T.Text where
     arbitrary = fromString <$> (arbitrary :: QC.Gen String)
