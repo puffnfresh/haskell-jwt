@@ -1,3 +1,8 @@
+# 2016-04-11 0.7.1
+
+* Add `binarySecret` function to enable providing a secret based on a `ByteString`
+  (fixes #21 - Thanks to Joe Nelson for reporting this).
+
 # 2016-02-20 0.7.0
 
 * Update JWT to match RFC 7519. This is a backward compatible change with
