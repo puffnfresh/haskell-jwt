@@ -1,0 +1,14 @@
+image: haskell:7.10
+
+pipelines:
+  default:
+    - step:
+        script:
+          - stack test
+          - stack test jwt:doctests
+  branches: # Container for all branch-specific pipelines.
+    master:
+      - step:
+          script:
+            - stack test
+            - stack test jwt:doctests
