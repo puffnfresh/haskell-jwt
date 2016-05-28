@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings, ScopedTypeVariables, TemplateHaskell #-}
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, OverlappingInstances #-}
 module Web.JWTTests
   (
     main
