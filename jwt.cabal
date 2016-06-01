@@ -66,6 +66,7 @@ test-suite testsuite
                      , Web.JWTTestsCompat
                      , Data.Text.Extended
                      , Data.Text.ExtendedTests
+                     , Data.ByteString.ExtendedTests
   hs-source-dirs:      tests/src, src
   build-depends:       base < 5 && >= 4.4
                      , tasty >= 0.7
