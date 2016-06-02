@@ -1,3 +1,10 @@
+# 2016-06-02 0.7.2
+
+* Add missing Data.ByteString.ExtendedTests (Thanks to nomeata for reporting
+  this).
+* Support GHC 8 by raising the upper bound of base (GHC8 ships with base-4.9)
+  (Thanks to Utku Demir).
+
 # 2016-04-11 0.7.1
 
 * Add `binarySecret` function to enable providing a secret based on a `ByteString`
