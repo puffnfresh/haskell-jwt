@@ -10,10 +10,7 @@ From http://self-issued.info/docs/draft-ietf-oauth-json-web-token.html
 > of a JSON Web Encryption (JWE) structure, enabling the claims to be digitally signed or MACed 
 > and/or encrypted.
 
-See the [Web.JWT module](http://hackage.haskell.org/package/jwt/docs/Web-JWT.html) documentation  to get started.
-
+See the [Web.JWT module](http://hackage.haskell.org/package/jwt/docs/Web-JWT.html) documentation to get started.
 
 [![Build
 Status](https://travis-ci.org/juretta/haskell-jwt.svg?branch=master)](https://travis-ci.org/juretta/haskell-jwt)
-
-
