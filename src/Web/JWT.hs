@@ -41,6 +41,7 @@ module Web.JWT
     , tokenIssuer
     , secret
     , binarySecret
+    , rsaKeySecret
     -- ** JWT structure
     , claims
     , header
@@ -81,6 +82,7 @@ import qualified Data.ByteString.Extended as BS
 import qualified Data.Text.Extended         as T
 import qualified Data.Text.Encoding         as TE
 
+import           Codec.Crypto.RSA           (PrivateKey(..), PublicKey(..), sign)
 import           Control.Applicative
 import           Control.Monad
 import           Crypto.Hash.Algorithms
@@ -95,6 +97,22 @@ import           Data.Maybe
 import           Data.Scientific
 import           Data.Time.Clock            (NominalDiffTime)
 import qualified Network.URI                as URI
+import           OpenSSL.EVP.PKey           (toKeyPair)
+import           OpenSSL.PEM                (PemPasswordSupply(..), readPrivateKey)
+import           OpenSSL.RSA
+    ( RSAKeyPair
+    , RSAPubKey
+    , rsaCopyPublic
+    , rsaD
+    , rsaDMP1
+    , rsaDMQ1
+    , rsaE
+    , rsaIQMP
+    , rsaN
+    , rsaP
+    , rsaQ
+    , rsaSize
+    )
 import           Prelude                    hiding (exp)
 
 -- $setup
@@ -109,10 +127,9 @@ type JSON = T.Text
 type JWTHeader = JOSEHeader
 
 -- | The secret used for calculating the message signature
-newtype Secret = Secret BS.ByteString
-
-instance Eq Secret where
-    (Secret s1) == (Secret s2) = s1 `BS.constTimeCompare` s2
+data Secret
+    = Secret BS.ByteString -- ^ A textual key, for use with @'HS256'@
+    | RSAKey PrivateKey    -- ^ An RSA Private key, for use with @'RS256'@
 
 instance Show Secret where
     show _ = "<secret>"
@@ -177,6 +194,7 @@ instance Show StringOrURI where
     show (U u) = show u
 
 data Algorithm = HS256 -- ^ HMAC using SHA-256 hash algorithm
+               | RS256 -- ^ RSA using SHA-256 hash algorithm
                  deriving (Eq, Show)
 
 -- | JOSE Header, describes the cryptographic operations applied to the JWT
@@ -364,6 +382,66 @@ secret = Secret . TE.encodeUtf8
 binarySecret :: BS.ByteString -> Secret
 binarySecret = Secret
 
+-- | Create an RSAKey from PEM contents
+--
+-- > rsaKeySecret =<< readFile "foo.pem"
+--
+-- >>> :{
+--   -- A random example key created with `ssh-keygen -t rsa`
+--   fmap (\(Just (RSAKey pk)) -> pk) $ rsaKeySecret $ unlines
+--       [ "-----BEGIN RSA PRIVATE KEY-----"
+--       , "MIIEowIBAAKCAQEAkkmgbLluo5HommstpHr1h53uWfuN3CwYYYR6I6a2MzAHIMIv"
+--       , "8Ak2ha+N2UDeYsfVhZ/DOnE+PMm2RpYSaiYT0l2a7ZkmRSbcyvVFt3XLePJbmUgo"
+--       , "ieyccS4uYHeqRggdWH9His3JaR2N71N9iU0+mY5nu2+15iYw3naT/PSx01IzBqHN"
+--       , "Zie1z3FYX09FgOs31mcR8VWj8DefxbKE08AW+vDMT2AmUC2b+Gqk6SqRz29HuPBs"
+--       , "yyV4Xl9CgzcCWjuXTv6mevDygo5RVZg34U6L1iFRgwwHbrLcd2N97wlKz+OiDSgM"
+--       , "sbZWA0i2D9ZsDR9rdEdXzUIw6toIRYZfeI9QYQIDAQABAoIBAEXkh5Fqx0G/ZLLi"
+--       , "olwDo2u4OTkkxxJ6vutYsEJ4VHUAbWdpYB3/SN12kv9JzvbDI3FEc7JoiKPifAQd"
+--       , "j47HwpCvyGXc1jwT5UnTBgwxa5XNtZX2s+ex9Mzek6njgqcTGXI+3Z+j0qc2R6og"
+--       , "6cm/7jjPoSAcr3vWo2KmpO4muw+LbYoSGo0Jydoa5cGtkmDfsjjrMw7mDoRttdhw"
+--       , "WdhS+q2aJPFI7q7itoYUd7KLe3nOeM0zd35Pc8Qc6jGk+JZxQdXrb/NrSNgAATcN"
+--       , "GGS226Q444N0pAfc188IDcAtQPSJpzbs/1+TPzE4ov/lpHTr91hXr3RLyVgYBI01"
+--       , "jrggfAECgYEAwaC4iDSZQ+8eUx/zR973Lu9mvQxC2BZn6QcOtBcIRBdGRlXfhwuD"
+--       , "UgwVZ2M3atH5ZXFuQ7pRtJtj7KCFy7HUFAJC15RCfLjx+n39bISNp5NOJEdI+UM+"
+--       , "G2xMHv5ywkULV7Jxb+tSgsYIvJ0tBjACkif8ahNjgVJmgMSOgdHR2pkCgYEAwWkN"
+--       , "uquRqKekx4gx1gJYV7Y6tPWcsZpEcgSS7AGNJ4UuGZGGHdStpUoJICn2cFUngYNz"
+--       , "eJXOg+VhQJMqQx9c+u85mg/tJluGaw95tBAafspwvhKewlO9OhQeVInPbXMUwrJ0"
+--       , "PS3XV7c74nxm6Nn4QHlM07orn3lOiWxZF8BBSQkCgYATjwSU3ZtNvW22v9d3PxKA"
+--       , "7zXVitOFuF2usEPP9TOkjSVQHYSCw6r0MrxGwULry2IB2T9mH//42mlxkZVySfg+"
+--       , "PSw7UoKUzqnCv89Fku4sKzkNeRXp99ziMEJQLyuwbAEFTsUepQqkoxRm2QmfQmJA"
+--       , "GUHqBSNcANLR1wj+HA+yoQKBgQCBlqj7RQ+AaGsQwiFaGhIlGtU1AEgv+4QWvRfQ"
+--       , "B64TJ7neqdGp1SFP2U5J/bPASl4A+hl5Vy6a0ysZQEGV3cLH41e98SPdin+C5kiO"
+--       , "LCgEghGOWR2EaOUlr+sui3OvCueDGFynzTo27G+0bdPp+nnKgTvHtTqbTIUhsLX1"
+--       , "IvzbOQKBgH4q36jgBb9T3hjXtWyrytlmFtBdw0i+UiMvMlnOqujGhcnOk5UMyxOQ"
+--       , "sQI+/31jIGbmlE7YaYykR1FH3LzAjO4J1+m7vv5fIRdG8+sI01xTc8UAdbmWtK+5"
+--       , "TK1oLP43BHH5gRAfIlXj2qmap5lEG6If/xYB4MOs8Bui5iKaJlM5"
+--       , "-----END RSA PRIVATE KEY-----"
+--       ]
+-- :}
+-- PrivateKey {private_pub = PublicKey {public_size = 256, public_n = 1846..., public_e = 65537}, private_d = 8823..., private_p = 135..., private_q = 1358..., private_dP = 1373..., private_dQ = 9100..., private_qinv = 8859...}
+--
+rsaKeySecret :: String -> IO (Maybe Secret)
+rsaKeySecret k = do
+    mKeyPair <- toKeyPair <$> readPrivateKey k PwNone
+    mPublicKey <- mapM rsaCopyPublic mKeyPair
+    return $ RSAKey <$>
+        (fromRSAKey <$> mKeyPair <*> mPublicKey)
+  where
+    fromRSAKey :: RSAKeyPair -> RSAPubKey -> PrivateKey
+    fromRSAKey kp pk = PrivateKey
+        { private_pub = PublicKey
+            { public_size = rsaSize pk
+            , public_n = rsaN pk
+            , public_e = rsaE pk
+            }
+        , private_d = rsaD kp
+        , private_p = rsaP kp
+        , private_q = rsaQ kp
+        , private_dP = fromMaybe 0 $ rsaDMP1 kp
+        , private_dQ = fromMaybe 0 $ rsaDMQ1 kp
+        , private_qinv = fromMaybe 0 $ rsaIQMP kp
+        }
+
 -- | Convert the `NominalDiffTime` into an IntDate. Returns a Nothing if the
 -- argument is invalid (e.g. the NominalDiffTime must be convertible into a
 -- positive Integer representing the seconds since epoch).
@@ -417,9 +495,17 @@ dotted = T.intercalate "."
 -- =================================================================================
 
 calculateDigest :: Algorithm -> Secret -> T.Text -> T.Text
-calculateDigest HS256 (Secret key) msg = TE.decodeUtf8 $ convertToBase Base64URLUnpadded (hmac key (bs msg) :: HMAC SHA256)
-    where 
-        bs = TE.encodeUtf8
+calculateDigest HS256 (Secret key) msg =
+    TE.decodeUtf8 $ convertToBase Base64URLUnpadded (hmac key (TE.encodeUtf8 msg) :: HMAC SHA256)
+
+calculateDigest RS256 (RSAKey key) msg = TE.decodeUtf8
+    $ convertToBase Base64URLUnpadded
+    $ BL.toStrict
+    $ sign key
+    $ BL.fromStrict
+    $ TE.encodeUtf8 msg
+
+calculateDigest _ _ _ = error "Invalid use of calculateDigest"
 
 -- =================================================================================
 
@@ -482,9 +568,11 @@ instance FromJSON NumericDate where
 
 instance ToJSON Algorithm where
     toJSON HS256 = String ("HS256"::T.Text)
+    toJSON RS256 = String ("RS256"::T.Text)
 
 instance FromJSON Algorithm where
     parseJSON (String "HS256") = return HS256
+    parseJSON (String "RS256") = return RS256
     parseJSON _                = mzero
 
 instance ToJSON StringOrURI where
