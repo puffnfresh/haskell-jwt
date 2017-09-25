@@ -1,9 +1,9 @@
 {-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE TemplateHaskell      #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-|
 Tests that verify that the shape of the JSON used is matching the spec.
 
@@ -23,20 +23,18 @@ module Web.JWTInteropTests (
 ) where
 
 import           Prelude hiding (exp)
-import           Control.Applicative
 import           Control.Lens
 import           Data.Aeson.Lens
 import           Data.Aeson.Types
 import qualified Data.Map              as Map
 import           Data.Maybe
-import           Data.String           (IsString, fromString)
+import           Data.String           (fromString)
 import qualified Data.Text             as T
 import qualified Data.Text.Lazy        as TL
 import           Data.Time
 import qualified Data.Vector           as Vector
 import qualified Test.QuickCheck       as QC
 import           Test.Tasty
-import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
 import           Test.Tasty.TH
 import           Web.JWT
@@ -56,6 +54,7 @@ prop_encode_decode_sub = shouldBeMaybeStringOrUri "sub" sub
 prop_encode_decode_iss :: JWTClaimsSet -> Bool
 prop_encode_decode_iss = shouldBeMaybeStringOrUri "iss" iss
 
+shouldBeMaybeStringOrUri :: ToJSON a => T.Text -> (a -> Maybe StringOrURI) -> a -> Bool
 shouldBeMaybeStringOrUri key' f claims' = 
     let json = toJSON claims' ^? key key'
     in json == (fmap (String . stringOrURIToText) $ f claims')
@@ -80,7 +79,7 @@ instance Arbitrary JWTClaimsSet where
                              <*> arbitrary
 
 instance Arbitrary ClaimsMap where
-    arbitrary = return Map.empty
+    arbitrary = return $ ClaimsMap Map.empty
 
 instance Arbitrary NumericDate where
     arbitrary = fmap (f . numericDate) (arbitrary :: QC.Gen NominalDiffTime)

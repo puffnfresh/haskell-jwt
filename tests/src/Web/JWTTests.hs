@@ -1,12 +1,13 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings, ScopedTypeVariables, TemplateHaskell #-}
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, OverlappingInstances #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Web.JWTTests
   (
     main
   , defaultTestGroup
 ) where
 
-import           Control.Applicative
 import           Test.Tasty
 import           Test.Tasty.TH
 import           Test.Tasty.HUnit
@@ -14,12 +15,11 @@ import           Test.Tasty.QuickCheck
 import qualified Test.QuickCheck as QC
 import qualified Data.Map              as Map
 import qualified Data.Text             as T
-import qualified Data.Text.Encoding         as TE
 import qualified Data.Text.Lazy        as TL
 import qualified Data.ByteString as BS
 import           Data.Aeson.Types
 import           Data.Maybe
-import           Data.String (fromString, IsString)
+import           Data.String (fromString)
 import           Data.Time
 import           Web.JWT
 
@@ -52,7 +52,7 @@ case_decodeJWT = do
     True @=? isJust (fmap signature mJwt)
     let (Just unverified) = mJwt
     Just HS256 @=? alg (header unverified)
-    Just "payload" @=? Map.lookup "some" (unregisteredClaims $ claims unverified)
+    Just "payload" @=? Map.lookup "some" (unClaimsMap $ unregisteredClaims $ claims unverified)
 
 case_verify = do
     -- Generated with ruby-jwt
@@ -67,7 +67,7 @@ case_decodeAndVerifyJWT = do
     True @=? isJust mJwt
     let (Just verified) = mJwt
     Just HS256 @=? alg (header verified)
-    Just "payload" @=? Map.lookup "some" (unregisteredClaims $ claims verified)
+    Just "payload" @=? Map.lookup "some" (unClaimsMap $ unregisteredClaims $ claims verified)
 
 -- It must be impossible to get a VerifiedJWT if alg is "none"
 case_decodeAndVerifyJWTAlgoNone = do
@@ -111,7 +111,7 @@ case_decodeAndVerifySignatureInvalidInput = do
 case_encodeJWTNoMac = do
     let cs = def {
         iss = stringOrURI "Foo"
-      , unregisteredClaims = Map.fromList [("http://example.com/is_root", Bool True)]
+      , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
         jwt = encodeUnsigned cs
     -- Verify the shape of the JWT, ensure the shape of the triple of
@@ -125,7 +125,7 @@ case_encodeJWTNoMac = do
 case_encodeDecodeJWTNoMac = do
     let cs = def {
         iss = stringOrURI "Foo"
-      , unregisteredClaims = Map.fromList [("http://example.com/is_root", Bool True)]
+      , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
         mJwt = decode $ encodeUnsigned cs
     True @=? isJust mJwt
@@ -137,7 +137,7 @@ case_encodeDecodeJWT = do
         cs = def {
         iss = stringOrURI "Foo"
       , iat = numericDate now
-      , unregisteredClaims = Map.fromList [("http://example.com/is_root", Bool True)]
+      , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
         key = secret "secret-key"
         mJwt = decode $ encodeSigned HS256 key cs
@@ -149,7 +149,7 @@ case_tokenIssuer = do
     let iss' = stringOrURI "Foo"
         cs = def {
         iss = iss'
-      , unregisteredClaims = Map.fromList [("http://example.com/is_root", Bool True)]
+      , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
         key = secret "secret-key"
         t   = encodeSigned HS256 key cs
@@ -160,7 +160,7 @@ case_encodeDecodeJWTClaimsSetCustomClaims = do
         cs = def {
         iss = stringOrURI "Foo"
       , iat = numericDate now
-      , unregisteredClaims = Map.fromList [("http://example.com/is_root", Bool True)]
+      , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
     let secret' = secret "secret"
         jwt = decodeAndVerifySignature secret' $ encodeSigned HS256 secret' cs
@@ -239,7 +239,7 @@ instance Arbitrary JWTClaimsSet where
                              <*> arbitrary
 
 instance Arbitrary ClaimsMap where
-    arbitrary = return Map.empty
+    arbitrary = return $ ClaimsMap Map.empty
 
 instance Arbitrary NumericDate where
     arbitrary = fmap (f . numericDate) (arbitrary :: QC.Gen NominalDiffTime)

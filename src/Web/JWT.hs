@@ -66,7 +66,7 @@ module Web.JWT
     , JSON
     , Algorithm(..)
     , JWTClaimsSet(..)
-    , ClaimsMap
+    , ClaimsMap(..)
     , IntDate
     , NumericDate
     , StringOrURI
@@ -232,7 +232,7 @@ data JWTClaimsSet = JWTClaimsSet {
 
 
 instance Default JWTClaimsSet where
-    def = JWTClaimsSet Nothing Nothing Nothing Nothing Nothing Nothing Nothing Map.empty
+    def = JWTClaimsSet Nothing Nothing Nothing Nothing Nothing Nothing Nothing $ ClaimsMap Map.empty
 
 
 -- | Encode a claims set using the given secret
@@ -248,13 +248,13 @@ instance Default JWTClaimsSet where
 -- @
 -- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.vHQHuG3ujbnBUmEp-fSUtYxk27rLiP2hrNhxpyWhb2E"
 encodeSigned :: Algorithm -> Secret -> JWTClaimsSet -> JSON
-encodeSigned algo secret claims = dotted [header, claim, signature]
-    where claim     = encodeJWT claims
-          header    = encodeJWT def {
+encodeSigned algo secret' claims' = dotted [header', claim, signature']
+    where claim     = encodeJWT claims'
+          header'   = encodeJWT def {
                         typ = Just "JWT"
                       , alg = Just algo
                       }
-          signature = calculateDigest algo secret (dotted [header, claim])
+          signature' = calculateDigest algo secret' (dotted [header', claim])
 
 -- | Encode a claims set without signing it
 --
@@ -269,9 +269,9 @@ encodeSigned algo secret claims = dotted [header, claim, signature]
 --  @
 -- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjEzOTQ3MDA5MzQsImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlLCJpc3MiOiJGb28ifQ."
 encodeUnsigned :: JWTClaimsSet -> JSON
-encodeUnsigned claims = dotted [header, claim, ""]
-    where claim     = encodeJWT claims
-          header    = encodeJWT def {
+encodeUnsigned claims' = dotted [header', claim, ""]
+    where claim     = encodeJWT claims'
+          header'   = encodeJWT def {
                         typ = Just "JWT"
                       , alg = Just HS256
                       }
@@ -297,7 +297,7 @@ encodeUnsigned claims = dotted [header, claim, ""]
 --      mJwt = decode input
 --  in fmap claims mJwt
 -- :}
--- Just (JWTClaimsSet {iss = Nothing, sub = Nothing, aud = Nothing, exp = Nothing, nbf = Nothing, iat = Nothing, jti = Nothing, unregisteredClaims = fromList [("some",String "payload")]})
+-- Just (JWTClaimsSet {iss = Nothing, sub = Nothing, aud = Nothing, exp = Nothing, nbf = Nothing, iat = Nothing, jti = Nothing, unregisteredClaims = ClaimsMap {unClaimsMap = fromList [("some",String "payload")]}})
 decode :: JSON -> Maybe (JWT UnverifiedJWT)
 decode input = do
     (h,c,s) <- extractElems $ T.splitOn "." input
@@ -423,13 +423,14 @@ calculateDigest HS256 (Secret key) msg = TE.decodeUtf8 $ convertToBase Base64URL
 
 -- =================================================================================
 
-type ClaimsMap = Map.Map T.Text Value
+newtype ClaimsMap = ClaimsMap { unClaimsMap :: Map.Map T.Text Value }
+    deriving (Eq, Show)
 
 fromHashMap :: Object -> ClaimsMap
-fromHashMap = Map.fromList . StrictMap.toList
+fromHashMap = ClaimsMap . Map.fromList . StrictMap.toList
 
 removeRegisteredClaims :: ClaimsMap -> ClaimsMap
-removeRegisteredClaims input = Map.differenceWithKey (\_ _ _ -> Nothing) input registeredClaims
+removeRegisteredClaims (ClaimsMap input) = ClaimsMap $ Map.differenceWithKey (\_ _ _ -> Nothing) input registeredClaims
     where 
         registeredClaims = Map.fromList $ map (\e -> (e, Null)) ["iss", "sub", "aud", "exp", "nbf", "iat", "jti"]
 
@@ -442,7 +443,7 @@ instance ToJSON JWTClaimsSet where
                 , fmap ("nbf" .=) nbf
                 , fmap ("iat" .=) iat
                 , fmap ("jti" .=) jti
-            ] ++ Map.toList (removeRegisteredClaims unregisteredClaims)
+            ] ++ Map.toList (unClaimsMap $ removeRegisteredClaims unregisteredClaims)
 
 instance FromJSON JWTClaimsSet where
         parseJSON = withObject "JWTClaimsSet"

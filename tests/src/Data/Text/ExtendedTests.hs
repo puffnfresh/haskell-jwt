@@ -1,13 +1,13 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Data.Text.ExtendedTests
   (
     main
   , defaultTestGroup
 ) where
 
-import           Control.Applicative
 import           Data.String           (fromString)
 import qualified Data.Text.Extended    as T
 import qualified Test.QuickCheck       as QC

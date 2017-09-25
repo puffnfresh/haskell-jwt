@@ -1,5 +1,7 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings, ScopedTypeVariables, TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 {- 
 - Turn of deprecation warnings as these tests deliberately use 
@@ -13,19 +15,11 @@ module Web.JWTTestsCompat
   , defaultTestGroup
 ) where
 
-import           Control.Applicative
 import           Test.Tasty
 import           Test.Tasty.TH
 import           Test.Tasty.HUnit
-import           Test.Tasty.QuickCheck
-import qualified Test.QuickCheck as QC
 import qualified Data.Map              as Map
-import qualified Data.Text             as T
-import qualified Data.Text.Lazy        as TL
 import           Data.Aeson.Types
-import           Data.Maybe
-import           Data.String (fromString, IsString)
-import           Data.Time
 import           Web.JWT
 
 defaultTestGroup :: TestTree
@@ -44,7 +38,7 @@ case_encodeDecodeJWTIntDateIat = do
         cs = def {
         iss = stringOrURI "Foo"
       , iat = intDate now
-      , unregisteredClaims = Map.fromList [("http://example.com/is_root", Bool True)]
+      , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
         key = secret "secret-key"
         mJwt = decode $ encodeSigned HS256 key cs
