@@ -40,8 +40,8 @@ case_encodeDecodeJWTIntDateIat = do
       , iat = intDate now
       , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
-        key = secret "secret-key"
-        mJwt = decode $ encodeSigned HS256 key cs
+        key = hmacSecret "secret-key"
+        mJwt = decode $ encodeSigned key cs
     let (Just claims') = fmap claims mJwt
     cs @=? claims'
     Just now @=? fmap secondsSinceEpoch (iat claims')

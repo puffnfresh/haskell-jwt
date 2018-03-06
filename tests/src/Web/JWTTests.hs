@@ -57,13 +57,13 @@ case_decodeJWT = do
 case_verify = do
     -- Generated with ruby-jwt
     let input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
-        mVerified = verify (secret "secret") =<< decode input
+        mVerified = verify (hmacSecret "secret") =<< decode input
     True @=? isJust mVerified
 
 case_decodeAndVerifyJWT = do
     -- Generated with ruby-jwt
     let input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
-        mJwt = decodeAndVerifySignature (secret "secret") input
+        mJwt = decodeAndVerifySignature (hmacSecret "secret") input
     True @=? isJust mJwt
     let (Just verified) = mJwt
     Just HS256 @=? alg (header verified)
@@ -89,13 +89,13 @@ case_decodeAndVerifyJWTAlgoNone = do
             }
     -}
     let input = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJpc3MiOiJodHRwczovL2p3dC1pZHAuZXhhbXBsZS5jb20iLCJzdWIiOiJtYWlsdG86bWlrZUBleGFtcGxlLmNvbSIsIm5iZiI6MTQyNTk4MDc1NSwiZXhwIjoxNDI1OTg0MzU1LCJpYXQiOjE0MjU5ODA3NTUsImp0aSI6ImlkMTIzNDU2IiwidHlwIjoiaHR0cHM6Ly9leGFtcGxlLmNvbS9yZWdpc3RlciJ9."
-        mJwt = decodeAndVerifySignature (secret "secretkey") input
+        mJwt = decodeAndVerifySignature (hmacSecret "secretkey") input
     False @=? isJust mJwt
 
 case_decodeAndVerifyJWTFailing = do
     -- Generated with ruby-jwt, modified to be invalid
     let input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2u"
-        mJwt = decodeAndVerifySignature (secret "secret") input
+        mJwt = decodeAndVerifySignature (hmacSecret "secret") input
     False @=? isJust mJwt
 
 case_decodeInvalidInput = do
@@ -105,7 +105,7 @@ case_decodeInvalidInput = do
 
 case_decodeAndVerifySignatureInvalidInput = do
     let inputs = ["", "a.", "a.b"]
-        result = map (decodeAndVerifySignature (secret "secret")) inputs
+        result = map (decodeAndVerifySignature (hmacSecret "secret")) inputs
     True @=? all isNothing result
 
 case_encodeJWTNoMac = do
@@ -139,8 +139,8 @@ case_encodeDecodeJWT = do
       , iat = numericDate now
       , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
-        key = secret "secret-key"
-        mJwt = decode $ encodeSigned HS256 key cs
+        key = hmacSecret "secret-key"
+        mJwt = decode $ encodeSigned key cs
     let (Just claims') = fmap claims mJwt
     cs @=? claims'
     Just now @=? fmap secondsSinceEpoch (iat claims')
@@ -151,8 +151,8 @@ case_tokenIssuer = do
         iss = iss'
       , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
-        key = secret "secret-key"
-        t   = encodeSigned HS256 key cs
+        key = hmacSecret "secret-key"
+        t   = encodeSigned key cs
     iss' @=? tokenIssuer t
 
 case_encodeDecodeJWTClaimsSetCustomClaims = do
@@ -162,8 +162,8 @@ case_encodeDecodeJWTClaimsSetCustomClaims = do
       , iat = numericDate now
       , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
-    let secret' = secret "secret"
-        jwt = decodeAndVerifySignature secret' $ encodeSigned HS256 secret' cs
+    let secret' = hmacSecret "secret"
+        jwt = decodeAndVerifySignature secret' $ encodeSigned secret' cs
     Just cs @=? fmap claims jwt
 
 case_encodeDecodeJWTClaimsSetWithSingleAud = do
@@ -173,8 +173,8 @@ case_encodeDecodeJWTClaimsSetWithSingleAud = do
           , aud = Left <$> stringOrURI "single-audience"
           , iat = numericDate now
         }
-    let secret' = secret "secret"
-        jwt = decodeAndVerifySignature secret' $ encodeSigned HS256 secret' cs
+    let secret' = hmacSecret "secret"
+        jwt = decodeAndVerifySignature secret' $ encodeSigned secret' cs
     Just cs @=? fmap claims jwt
 
 case_encodeDecodeJWTClaimsSetWithMultipleAud = do
@@ -184,8 +184,8 @@ case_encodeDecodeJWTClaimsSetWithMultipleAud = do
           , aud = Right <$> (:[]) <$> stringOrURI "audience"
           , iat = numericDate now
         }
-    let secret' = secret "secret"
-        jwt = decodeAndVerifySignature secret' $ encodeSigned HS256 secret' cs
+    let secret' = hmacSecret "secret"
+        jwt = decodeAndVerifySignature secret' $ encodeSigned secret' cs
     Just cs @=? fmap claims jwt
 
 case_encodeDecodeJWTClaimsSetBinarySecret = do
@@ -195,8 +195,8 @@ case_encodeDecodeJWTClaimsSetBinarySecret = do
           , iat = numericDate now
         }
     secretKey <- BS.readFile "tests/jwt.secret.1"
-    let secret' = binarySecret secretKey
-        jwt = decodeAndVerifySignature secret' $ encodeSigned HS256 secret' cs
+    let secret' = HMACSecret secretKey
+        jwt = decodeAndVerifySignature secret' $ encodeSigned secret' cs
     Just cs @=? fmap claims jwt
 
 prop_stringOrURIProp = f
@@ -213,18 +213,18 @@ prop_stringOrURIToText= f
 
 prop_encode_decode = f
     where f :: T.Text -> JWTClaimsSet -> Bool
-          f key claims' = let Just unverified = (decode $ encodeSigned HS256 (secret key) claims')
+          f key claims' = let Just unverified = (decode $ encodeSigned (hmacSecret key) claims')
                           in claims unverified == claims'
 
 prop_encode_decode_binary_secret = f
     where f :: BS.ByteString -> JWTClaimsSet -> Bool
-          f binary claims' = let Just unverified = (decode $ encodeSigned HS256 (binarySecret binary) claims')
+          f binary claims' = let Just unverified = (decode $ encodeSigned (HMACSecret binary) claims')
                           in claims unverified == claims'
 
 prop_encode_decode_verify_signature = f
     where f :: T.Text -> JWTClaimsSet -> Bool
-          f key' claims' = let key = secret key'
-                               Just verified = (decodeAndVerifySignature key $ encodeSigned HS256 key claims')
+          f key' claims' = let key = hmacSecret key'
+                               Just verified = (decodeAndVerifySignature key $ encodeSigned key claims')
                            in claims verified == claims'
 
 
