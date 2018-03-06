@@ -270,7 +270,7 @@ encodeSigned signer claims' = dotted [header', claim, signature']
                         typ = Just "JWT"
                       , alg = Just algo
                       }
-          signature' = calculateDigest algo signer (dotted [header', claim])
+          signature' = calculateDigest signer (dotted [header', claim])
 
 -- | Encode a claims set without signing it
 --
@@ -346,8 +346,7 @@ decode input = do
 -- Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
 verify :: Signer -> JWT UnverifiedJWT -> Maybe (JWT VerifiedJWT)
 verify signer (Unverified header' claims' unverifiedSignature originalClaim) = do
-   algo <- alg header'
-   let calculatedSignature = Signature $ calculateDigest algo signer originalClaim
+   let calculatedSignature = Signature $ calculateDigest signer originalClaim
    guard (unverifiedSignature == calculatedSignature)
    pure $ Verified header' claims' calculatedSignature
 
@@ -488,18 +487,16 @@ dotted = T.intercalate "."
 
 -- =================================================================================
 
-calculateDigest :: Algorithm -> Signer -> T.Text -> T.Text
-calculateDigest HS256 (HMACSecret key) msg =
+calculateDigest :: Signer -> T.Text -> T.Text
+calculateDigest (HMACSecret key) msg =
     TE.decodeUtf8 $ convertToBase Base64URLUnpadded (hmac key (TE.encodeUtf8 msg) :: HMAC SHA256)
 
-calculateDigest RS256 (RSAPrivateKey key) msg = TE.decodeUtf8
+calculateDigest (RSAPrivateKey key) msg = TE.decodeUtf8
     $ convertToBase Base64URLUnpadded
     $ BL.toStrict
     $ sign key
     $ BL.fromStrict
     $ TE.encodeUtf8 msg
-
-calculateDigest _ _ _ = error "Invalid use of calculateDigest"
 
 -- =================================================================================
 
