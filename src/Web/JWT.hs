@@ -506,6 +506,12 @@ calculateDigest _ _ _ = error "Invalid use of calculateDigest"
 newtype ClaimsMap = ClaimsMap { unClaimsMap :: Map.Map T.Text Value }
     deriving (Eq, Show)
 
+instance Monoid ClaimsMap where
+  mempty =
+    ClaimsMap mempty
+  mappend (ClaimsMap a) (ClaimsMap b) =
+    ClaimsMap $ mappend a b
+
 fromHashMap :: Object -> ClaimsMap
 fromHashMap = ClaimsMap . Map.fromList . StrictMap.toList
 
