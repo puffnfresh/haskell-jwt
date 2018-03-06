@@ -201,9 +201,9 @@ data JOSEHeader = JOSEHeader {
     -- | The cty (content type) Header Parameter defined by [JWS] and [JWE] is
     -- used by this specification to convey structural information about the JWT.
   , cty :: Maybe T.Text
-    -- | The alg (algorithm) used for signing the JWT. The HS256 (HMAC using SHA-256)
-    -- is the only required algorithm and the only one supported in this implementation
-    -- in addition to "none" which means that no signature will be used.
+    -- | The alg (algorithm) used for signing the JWT. The HS256 (HMAC using
+    -- SHA-256) is the only required algorithm in addition to "none" which means
+    -- that no signature will be used.
     --
     -- See <http://tools.ietf.org/html/draft-ietf-jose-json-web-algorithms-23#page-6>
   , alg :: Maybe Algorithm
