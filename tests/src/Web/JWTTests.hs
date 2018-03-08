@@ -113,7 +113,7 @@ case_encodeJWTNoMac = do
         iss = stringOrURI "Foo"
       , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
-        jwt = encodeUnsigned cs
+        jwt = encodeUnsigned cs mempty
     -- Verify the shape of the JWT, ensure the shape of the triple of
     -- <header>.<claims>.<signature>
     let (h:c:s:_) = T.splitOn "." jwt
@@ -127,7 +127,7 @@ case_encodeDecodeJWTNoMac = do
         iss = stringOrURI "Foo"
       , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
-        mJwt = decode $ encodeUnsigned cs
+        mJwt = decode $ encodeUnsigned cs mempty
     True @=? isJust mJwt
     let (Just unverified) = mJwt
     cs @=? claims unverified
@@ -140,7 +140,7 @@ case_encodeDecodeJWT = do
       , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
         key = hmacSecret "secret-key"
-        mJwt = decode $ encodeSigned key cs
+        mJwt = decode $ encodeSigned key mempty cs
     let (Just claims') = fmap claims mJwt
     cs @=? claims'
     Just now @=? fmap secondsSinceEpoch (iat claims')
@@ -152,7 +152,7 @@ case_tokenIssuer = do
       , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
         key = hmacSecret "secret-key"
-        t   = encodeSigned key cs
+        t   = encodeSigned key mempty cs
     iss' @=? tokenIssuer t
 
 case_encodeDecodeJWTClaimsSetCustomClaims = do
@@ -163,7 +163,7 @@ case_encodeDecodeJWTClaimsSetCustomClaims = do
       , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
     let secret' = hmacSecret "secret"
-        jwt = decodeAndVerifySignature secret' $ encodeSigned secret' cs
+        jwt = decodeAndVerifySignature secret' $ encodeSigned secret' mempty cs
     Just cs @=? fmap claims jwt
 
 case_encodeDecodeJWTClaimsSetWithSingleAud = do
@@ -174,7 +174,7 @@ case_encodeDecodeJWTClaimsSetWithSingleAud = do
           , iat = numericDate now
         }
     let secret' = hmacSecret "secret"
-        jwt = decodeAndVerifySignature secret' $ encodeSigned secret' cs
+        jwt = decodeAndVerifySignature secret' $ encodeSigned secret' mempty cs
     Just cs @=? fmap claims jwt
 
 case_encodeDecodeJWTClaimsSetWithMultipleAud = do
@@ -185,7 +185,7 @@ case_encodeDecodeJWTClaimsSetWithMultipleAud = do
           , iat = numericDate now
         }
     let secret' = hmacSecret "secret"
-        jwt = decodeAndVerifySignature secret' $ encodeSigned secret' cs
+        jwt = decodeAndVerifySignature secret' $ encodeSigned secret' mempty cs
     Just cs @=? fmap claims jwt
 
 case_encodeDecodeJWTClaimsSetBinarySecret = do
@@ -196,7 +196,7 @@ case_encodeDecodeJWTClaimsSetBinarySecret = do
         }
     secretKey <- BS.readFile "tests/jwt.secret.1"
     let secret' = HMACSecret secretKey
-        jwt = decodeAndVerifySignature secret' $ encodeSigned secret' cs
+        jwt = decodeAndVerifySignature secret' $ encodeSigned secret' mempty cs
     Just cs @=? fmap claims jwt
 
 prop_stringOrURIProp = f
@@ -213,18 +213,18 @@ prop_stringOrURIToText= f
 
 prop_encode_decode = f
     where f :: T.Text -> JWTClaimsSet -> Bool
-          f key claims' = let Just unverified = (decode $ encodeSigned (hmacSecret key) claims')
+          f key claims' = let Just unverified = (decode $ encodeSigned (hmacSecret key) mempty claims')
                           in claims unverified == claims'
 
 prop_encode_decode_binary_secret = f
     where f :: BS.ByteString -> JWTClaimsSet -> Bool
-          f binary claims' = let Just unverified = (decode $ encodeSigned (HMACSecret binary) claims')
+          f binary claims' = let Just unverified = (decode $ encodeSigned (HMACSecret binary) mempty claims')
                           in claims unverified == claims'
 
 prop_encode_decode_verify_signature = f
     where f :: T.Text -> JWTClaimsSet -> Bool
           f key' claims' = let key = hmacSecret key'
-                               Just verified = (decodeAndVerifySignature key $ encodeSigned key claims')
+                               Just verified = (decodeAndVerifySignature key $ encodeSigned key mempty claims')
                            in claims verified == claims'
 
 
