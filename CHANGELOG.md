@@ -1,3 +1,8 @@
+# 2018-03-21 0.8.0
+
+* Support RS256 algorithm
+* Add Monoid for ClaimsMap
+
 # 2016-06-02 0.7.2
 
 * Add missing Data.ByteString.ExtendedTests (Thanks to nomeata for reporting
