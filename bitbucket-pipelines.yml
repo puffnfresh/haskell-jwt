@@ -1,19 +1,25 @@
-image: haskell:7.10
+image: haskell:8.0.2
 
 pipelines:
   default:
     - step:
+        caches:
+          - stack
+          - stack-root
+        name: Build and test
         script:
-          - stack test
-          - stack test jwt:doctests
-          # Test the distribution
-          - stack sdist && mkdir temp && tar -xf `stack path --dist-dir`/*.tar.gz -C ./temp && cd temp && stack init && stack test
-  branches: # Container for all branch-specific pipelines.
-    master:
-      - step:
-          script:
-            - stack test
-            - stack test jwt:doctests
-            # Test the distribution
-            - stack sdist && mkdir temp && tar -xf `stack path --dist-dir`/*.tar.gz -C ./temp && cd temp && stack init && stack test
+          - apt-get update && apt-get install -y libssl-dev build-essential
+          - make all
+    - step:
+        caches:
+          - stack
+          - stack-root
+        name: Test source distribution
+        script:
+          - apt-get update && apt-get install -y libssl-dev build-essential
+          - make test-dist
 
+definitions:
+  caches:
+    stack: ~/.stack-work
+    stack-root: /root/.stack
