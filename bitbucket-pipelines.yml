@@ -4,6 +4,7 @@ pipelines:
   default:
     - step:
         script:
+          - stack setup
           - stack test
           - stack test jwt:doctests
           # Test the distribution
@@ -12,6 +13,7 @@ pipelines:
     master:
       - step:
           script:
+            - stack setup
             - stack test
             - stack test jwt:doctests
             # Test the distribution
