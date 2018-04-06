@@ -5,6 +5,7 @@ pipelines:
     - step:
         caches:
           - stack
+          - stack-root
         script:
           - apt-get update && apt-get install -y libssl-dev
           - stack setup
@@ -16,3 +17,4 @@ pipelines:
 definitions:
   caches:
     stack: ~/.stack-work
+    stack-root: /root/.stack
