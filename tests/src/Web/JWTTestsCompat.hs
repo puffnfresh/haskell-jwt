@@ -35,7 +35,7 @@ case_intDateDeriveOrd = do
 
 case_encodeDecodeJWTIntDateIat = do
     let now = 1394573404
-        cs = def {
+        cs = mempty {
         iss = stringOrURI "Foo"
       , iat = intDate now
       , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]

@@ -72,8 +72,6 @@ module Web.JWT
     , StringOrURI
     , JWTHeader
     , JOSEHeader
-
-    , module Data.Default
     ) where
 
 import qualified Data.ByteString.Lazy.Char8 as BL (fromStrict, toStrict)
@@ -89,7 +87,6 @@ import           Crypto.MAC.HMAC
 import           Data.ByteArray.Encoding
 import           Data.Aeson                 hiding (decode, encode)
 import qualified Data.Aeson                 as JSON
-import           Data.Default
 import qualified Data.HashMap.Strict        as StrictMap
 import qualified Data.Map                   as Map
 import           Data.Maybe
@@ -209,8 +206,11 @@ data JOSEHeader = JOSEHeader {
   , alg :: Maybe Algorithm
 } deriving (Eq, Show)
 
-instance Default JOSEHeader where
-    def = JOSEHeader Nothing Nothing Nothing
+instance Monoid JOSEHeader where
+    mempty =
+      JOSEHeader Nothing Nothing Nothing
+    mappend (JOSEHeader a b c) (JOSEHeader a' b' c') =
+      JOSEHeader (a <|> a') (b <|> b') (c <|> c')
 
 -- | The JWT Claims Set represents a JSON object whose members are the claims conveyed by the JWT.
 data JWTClaimsSet = JWTClaimsSet {
@@ -242,16 +242,17 @@ data JWTClaimsSet = JWTClaimsSet {
 
 } deriving (Show, Eq)
 
-
-instance Default JWTClaimsSet where
-    def = JWTClaimsSet Nothing Nothing Nothing Nothing Nothing Nothing Nothing $ ClaimsMap Map.empty
-
+instance Monoid JWTClaimsSet where
+  mempty =
+    JWTClaimsSet Nothing Nothing Nothing Nothing Nothing Nothing Nothing $ ClaimsMap Map.empty
+  mappend (JWTClaimsSet a b c d e f g h) (JWTClaimsSet a' b' c' d' e' f' g' h') =
+    JWTClaimsSet (a <|> a') (b <|> b') (c <|> c') (d <|> d') (e <|> e') (f <|> f') (g <|> g') (mappend h h')
 
 -- | Encode a claims set using the given secret
 --
 --  @
 --  let
---      cs = def { -- def returns a default JWTClaimsSet
+--      cs = mempty { -- mempty returns a default JWTClaimsSet
 --         iss = stringOrURI "Foo"
 --       , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
 --      }
@@ -266,7 +267,7 @@ encodeSigned signer claims' = dotted [header', claim, signature']
                         HMACSecret _    -> HS256
                         RSAPrivateKey _ -> RS256
 
-          header'   = encodeJWT def {
+          header'   = encodeJWT mempty {
                         typ = Just "JWT"
                       , alg = Just algo
                       }
@@ -276,7 +277,7 @@ encodeSigned signer claims' = dotted [header', claim, signature']
 --
 --  @
 --  let
---      cs = def { -- def returns a default JWTClaimsSet
+--      cs = mempty { -- mempty returns a default JWTClaimsSet
 --      iss = stringOrURI "Foo"
 --    , iat = numericDate 1394700934
 --    , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
@@ -287,7 +288,7 @@ encodeSigned signer claims' = dotted [header', claim, signature']
 encodeUnsigned :: JWTClaimsSet -> JSON
 encodeUnsigned claims' = dotted [header', claim, ""]
     where claim     = encodeJWT claims'
-          header'   = encodeJWT def {
+          header'   = encodeJWT mempty {
                         typ = Just "JWT"
                       , alg = Just HS256
                       }

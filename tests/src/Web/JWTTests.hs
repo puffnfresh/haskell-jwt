@@ -109,7 +109,7 @@ case_decodeAndVerifySignatureInvalidInput = do
     True @=? all isNothing result
 
 case_encodeJWTNoMac = do
-    let cs = def {
+    let cs = mempty {
         iss = stringOrURI "Foo"
       , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
@@ -123,7 +123,7 @@ case_encodeJWTNoMac = do
 
 
 case_encodeDecodeJWTNoMac = do
-    let cs = def {
+    let cs = mempty {
         iss = stringOrURI "Foo"
       , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
@@ -134,7 +134,7 @@ case_encodeDecodeJWTNoMac = do
 
 case_encodeDecodeJWT = do
     let now = 1394573404
-        cs = def {
+        cs = mempty {
         iss = stringOrURI "Foo"
       , iat = numericDate now
       , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
@@ -147,7 +147,7 @@ case_encodeDecodeJWT = do
 
 case_tokenIssuer = do
     let iss' = stringOrURI "Foo"
-        cs = def {
+        cs = mempty {
         iss = iss'
       , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
     }
@@ -157,7 +157,7 @@ case_tokenIssuer = do
 
 case_encodeDecodeJWTClaimsSetCustomClaims = do
     let now = 1234
-        cs = def {
+        cs = mempty {
         iss = stringOrURI "Foo"
       , iat = numericDate now
       , unregisteredClaims = ClaimsMap $ Map.fromList [("http://example.com/is_root", Bool True)]
@@ -168,7 +168,7 @@ case_encodeDecodeJWTClaimsSetCustomClaims = do
 
 case_encodeDecodeJWTClaimsSetWithSingleAud = do
     let now = 1234
-        cs = def {
+        cs = mempty {
             iss = stringOrURI "Foo"
           , aud = Left <$> stringOrURI "single-audience"
           , iat = numericDate now
@@ -179,7 +179,7 @@ case_encodeDecodeJWTClaimsSetWithSingleAud = do
 
 case_encodeDecodeJWTClaimsSetWithMultipleAud = do
     let now = 1234
-        cs = def {
+        cs = mempty {
             iss = stringOrURI "Foo"
           , aud = Right <$> (:[]) <$> stringOrURI "audience"
           , iat = numericDate now
@@ -190,7 +190,7 @@ case_encodeDecodeJWTClaimsSetWithMultipleAud = do
 
 case_encodeDecodeJWTClaimsSetBinarySecret = do
     let now = 1234
-        cs = def {
+        cs = mempty {
             iss = stringOrURI "Foo"
           , iat = numericDate now
         }
