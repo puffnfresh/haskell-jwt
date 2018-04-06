@@ -6,6 +6,7 @@ pipelines:
         caches:
           - stack
         script:
+          - apt-get update && apt-get install -y libssl-dev
           - stack setup
           - stack test
           - stack test jwt:doctests
