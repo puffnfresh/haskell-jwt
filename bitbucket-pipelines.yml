@@ -6,12 +6,18 @@ pipelines:
         caches:
           - stack
           - stack-root
+        name: Build and test
         script:
           - apt-get update && apt-get install -y libssl-dev
           - stack setup
           - stack test
           - stack test jwt:doctests
-          # Test the distribution
+    - step:
+        caches:
+          - stack
+          - stack-root
+        name: Test source distribution
+        script:
           - stack sdist && mkdir temp && tar -xf `stack path --dist-dir`/*.tar.gz -C ./temp && cd temp && stack init && stack test
 
 definitions:
