@@ -46,6 +46,8 @@ library
                      , vector                   >= 0.7.1
                      , semigroups               >= 0.15.4
                      , network-uri
+                     , RSA
+                     , HsOpenSSL
 
   hs-source-dirs:      src
   default-language:    Haskell2010
@@ -91,6 +93,8 @@ test-suite testsuite
                      , vector                   >= 0.7.1
                      , semigroups               >= 0.15.4
                      , network-uri
+                     , RSA
+                     , HsOpenSSL
 
   cpp-options: -DTEST
 

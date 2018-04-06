@@ -1,15 +1,14 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Data.ByteString.ExtendedTests
   (
     main
   , defaultTestGroup
 ) where
 
-import           Control.Applicative
 import qualified Data.ByteString.Extended as BS
-import           Data.String              (fromString)
 import qualified Test.QuickCheck          as QC
 import           Test.Tasty
 import           Test.Tasty.QuickCheck

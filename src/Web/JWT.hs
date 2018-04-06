@@ -13,11 +13,11 @@ Maintainer:  Stefan Saasen <stefan@saasen.me>
 Stability:   experimental
 
 This implementation of JWT is based on <https://tools.ietf.org/html/rfc7519>
-but currently only implements the minimum required to work with the Atlassian Connect framework.
+but currently only implements the minimum required to work with the Atlassian Connect framework and GitHub App
 
 Known limitations:
 
-   * Only HMAC SHA-256 algorithm is currently a supported signature algorithm
+   * Only HMAC SHA-256 and RSA SHA-256 algorithms are currently a supported signature algorithm
 
    * There is currently no verification of time related information
    ('exp', 'nbf', 'iat').
@@ -39,8 +39,8 @@ module Web.JWT
     -- * Utility functions
     -- ** Common
     , tokenIssuer
-    , secret
-    , binarySecret
+    , hmacSecret
+    , rsaKeySecret
     -- ** JWT structure
     , claims
     , header
@@ -61,12 +61,12 @@ module Web.JWT
     , UnverifiedJWT
     , VerifiedJWT
     , Signature
-    , Secret
+    , Signer(..)
     , JWT
     , JSON
     , Algorithm(..)
     , JWTClaimsSet(..)
-    , ClaimsMap
+    , ClaimsMap(..)
     , IntDate
     , NumericDate
     , StringOrURI
@@ -81,6 +81,7 @@ import qualified Data.ByteString.Extended as BS
 import qualified Data.Text.Extended         as T
 import qualified Data.Text.Encoding         as TE
 
+import           Codec.Crypto.RSA           (PrivateKey(..), PublicKey(..), sign)
 import           Control.Applicative
 import           Control.Monad
 import           Crypto.Hash.Algorithms
@@ -95,6 +96,22 @@ import           Data.Maybe
 import           Data.Scientific
 import           Data.Time.Clock            (NominalDiffTime)
 import qualified Network.URI                as URI
+import           OpenSSL.EVP.PKey           (toKeyPair)
+import           OpenSSL.PEM                (PemPasswordSupply(..), readPrivateKey)
+import           OpenSSL.RSA
+    ( RSAKeyPair
+    , RSAPubKey
+    , rsaCopyPublic
+    , rsaD
+    , rsaDMP1
+    , rsaDMQ1
+    , rsaE
+    , rsaIQMP
+    , rsaN
+    , rsaP
+    , rsaQ
+    , rsaSize
+    )
 import           Prelude                    hiding (exp)
 
 -- $setup
@@ -108,14 +125,8 @@ type JSON = T.Text
 {-# DEPRECATED JWTHeader "Use JOSEHeader instead. JWTHeader will be removed in 1.0" #-}
 type JWTHeader = JOSEHeader
 
--- | The secret used for calculating the message signature
-newtype Secret = Secret BS.ByteString
-
-instance Eq Secret where
-    (Secret s1) == (Secret s2) = s1 `BS.constTimeCompare` s2
-
-instance Show Secret where
-    show _ = "<secret>"
+data Signer = HMACSecret BS.ByteString
+            | RSAPrivateKey PrivateKey
 
 newtype Signature = Signature T.Text deriving (Show)
 
@@ -177,6 +188,7 @@ instance Show StringOrURI where
     show (U u) = show u
 
 data Algorithm = HS256 -- ^ HMAC using SHA-256 hash algorithm
+               | RS256 -- ^ RSA using SHA-256 hash algorithm
                  deriving (Eq, Show)
 
 -- | JOSE Header, describes the cryptographic operations applied to the JWT
@@ -189,9 +201,9 @@ data JOSEHeader = JOSEHeader {
     -- | The cty (content type) Header Parameter defined by [JWS] and [JWE] is
     -- used by this specification to convey structural information about the JWT.
   , cty :: Maybe T.Text
-    -- | The alg (algorithm) used for signing the JWT. The HS256 (HMAC using SHA-256)
-    -- is the only required algorithm and the only one supported in this implementation
-    -- in addition to "none" which means that no signature will be used.
+    -- | The alg (algorithm) used for signing the JWT. The HS256 (HMAC using
+    -- SHA-256) is the only required algorithm in addition to "none" which means
+    -- that no signature will be used.
     --
     -- See <http://tools.ietf.org/html/draft-ietf-jose-json-web-algorithms-23#page-6>
   , alg :: Maybe Algorithm
@@ -232,7 +244,7 @@ data JWTClaimsSet = JWTClaimsSet {
 
 
 instance Default JWTClaimsSet where
-    def = JWTClaimsSet Nothing Nothing Nothing Nothing Nothing Nothing Nothing Map.empty
+    def = JWTClaimsSet Nothing Nothing Nothing Nothing Nothing Nothing Nothing $ ClaimsMap Map.empty
 
 
 -- | Encode a claims set using the given secret
@@ -243,18 +255,22 @@ instance Default JWTClaimsSet where
 --         iss = stringOrURI "Foo"
 --       , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
 --      }
---      key = secret "secret-key"
---  in encodeSigned HS256 key cs
+--      key = hmacSecret "secret-key"
+--  in encodeSigned key cs
 -- @
 -- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.vHQHuG3ujbnBUmEp-fSUtYxk27rLiP2hrNhxpyWhb2E"
-encodeSigned :: Algorithm -> Secret -> JWTClaimsSet -> JSON
-encodeSigned algo secret claims = dotted [header, claim, signature]
-    where claim     = encodeJWT claims
-          header    = encodeJWT def {
+encodeSigned :: Signer -> JWTClaimsSet -> JSON
+encodeSigned signer claims' = dotted [header', claim, signature']
+    where claim     = encodeJWT claims'
+          algo      = case signer of
+                        HMACSecret _    -> HS256
+                        RSAPrivateKey _ -> RS256
+
+          header'   = encodeJWT def {
                         typ = Just "JWT"
                       , alg = Just algo
                       }
-          signature = calculateDigest algo secret (dotted [header, claim])
+          signature' = calculateDigest signer (dotted [header', claim])
 
 -- | Encode a claims set without signing it
 --
@@ -269,9 +285,9 @@ encodeSigned algo secret claims = dotted [header, claim, signature]
 --  @
 -- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjEzOTQ3MDA5MzQsImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlLCJpc3MiOiJGb28ifQ."
 encodeUnsigned :: JWTClaimsSet -> JSON
-encodeUnsigned claims = dotted [header, claim, ""]
-    where claim     = encodeJWT claims
-          header    = encodeJWT def {
+encodeUnsigned claims' = dotted [header', claim, ""]
+    where claim     = encodeJWT claims'
+          header'   = encodeJWT def {
                         typ = Just "JWT"
                       , alg = Just HS256
                       }
@@ -297,7 +313,7 @@ encodeUnsigned claims = dotted [header, claim, ""]
 --      mJwt = decode input
 --  in fmap claims mJwt
 -- :}
--- Just (JWTClaimsSet {iss = Nothing, sub = Nothing, aud = Nothing, exp = Nothing, nbf = Nothing, iat = Nothing, jti = Nothing, unregisteredClaims = fromList [("some",String "payload")]})
+-- Just (JWTClaimsSet {iss = Nothing, sub = Nothing, aud = Nothing, exp = Nothing, nbf = Nothing, iat = Nothing, jti = Nothing, unregisteredClaims = ClaimsMap {unClaimsMap = fromList [("some",String "payload")]}})
 decode :: JSON -> Maybe (JWT UnverifiedJWT)
 decode input = do
     (h,c,s) <- extractElems $ T.splitOn "." input
@@ -324,14 +340,13 @@ decode input = do
 --  let
 --      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
 --      mUnverifiedJwt = decode input
---      mVerifiedJwt = verify (secret "secret") =<< mUnverifiedJwt
+--      mVerifiedJwt = verify (hmacSecret "secret") =<< mUnverifiedJwt
 --  in signature =<< mVerifiedJwt
 -- :}
 -- Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
-verify :: Secret -> JWT UnverifiedJWT -> Maybe (JWT VerifiedJWT)
-verify secret' (Unverified header' claims' unverifiedSignature originalClaim) = do
-   algo <- alg header'
-   let calculatedSignature = Signature $ calculateDigest algo secret' originalClaim
+verify :: Signer -> JWT UnverifiedJWT -> Maybe (JWT VerifiedJWT)
+verify signer (Unverified header' claims' unverifiedSignature originalClaim) = do
+   let calculatedSignature = Signature $ calculateDigest signer originalClaim
    guard (unverifiedSignature == calculatedSignature)
    pure $ Verified header' claims' calculatedSignature
 
@@ -344,12 +359,12 @@ verify secret' (Unverified header' claims' unverifiedSignature originalClaim) = 
 -- >>> :{
 --  let
 --      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
---      mJwt = decodeAndVerifySignature (secret "secret") input
+--      mJwt = decodeAndVerifySignature (hmacSecret "secret") input
 --  in signature =<< mJwt
 -- :}
 -- Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
-decodeAndVerifySignature :: Secret -> JSON -> Maybe (JWT VerifiedJWT)
-decodeAndVerifySignature secret' input = verify secret' =<< decode input
+decodeAndVerifySignature :: Signer -> JSON -> Maybe (JWT VerifiedJWT)
+decodeAndVerifySignature signer input = verify signer =<< decode input
 
 -- | Try to extract the value for the issue claim field 'iss' from the web token in JSON form
 tokenIssuer :: JSON -> Maybe StringOrURI
@@ -357,12 +372,68 @@ tokenIssuer = decode >=> fmap pure claims >=> iss
 
 -- | Create a Secret using the given key.
 -- Consider using `binarySecret` instead if your key is not already a "Data.Text".
-secret :: T.Text -> Secret
-secret = Secret . TE.encodeUtf8
+hmacSecret :: T.Text -> Signer
+hmacSecret = HMACSecret . TE.encodeUtf8
 
--- | Create a Secret using the given key.
-binarySecret :: BS.ByteString -> Secret
-binarySecret = Secret
+-- | Create an RSAPrivateKey from PEM contents
+--
+-- > rsaKeySecret =<< readFile "foo.pem"
+--
+-- >>> :{
+--   -- A random example key created with `ssh-keygen -t rsa`
+--   fmap (\(Just (RSAPrivateKey pk)) -> pk) $ rsaKeySecret $ unlines
+--       [ "-----BEGIN RSA PRIVATE KEY-----"
+--       , "MIIEowIBAAKCAQEAkkmgbLluo5HommstpHr1h53uWfuN3CwYYYR6I6a2MzAHIMIv"
+--       , "8Ak2ha+N2UDeYsfVhZ/DOnE+PMm2RpYSaiYT0l2a7ZkmRSbcyvVFt3XLePJbmUgo"
+--       , "ieyccS4uYHeqRggdWH9His3JaR2N71N9iU0+mY5nu2+15iYw3naT/PSx01IzBqHN"
+--       , "Zie1z3FYX09FgOs31mcR8VWj8DefxbKE08AW+vDMT2AmUC2b+Gqk6SqRz29HuPBs"
+--       , "yyV4Xl9CgzcCWjuXTv6mevDygo5RVZg34U6L1iFRgwwHbrLcd2N97wlKz+OiDSgM"
+--       , "sbZWA0i2D9ZsDR9rdEdXzUIw6toIRYZfeI9QYQIDAQABAoIBAEXkh5Fqx0G/ZLLi"
+--       , "olwDo2u4OTkkxxJ6vutYsEJ4VHUAbWdpYB3/SN12kv9JzvbDI3FEc7JoiKPifAQd"
+--       , "j47HwpCvyGXc1jwT5UnTBgwxa5XNtZX2s+ex9Mzek6njgqcTGXI+3Z+j0qc2R6og"
+--       , "6cm/7jjPoSAcr3vWo2KmpO4muw+LbYoSGo0Jydoa5cGtkmDfsjjrMw7mDoRttdhw"
+--       , "WdhS+q2aJPFI7q7itoYUd7KLe3nOeM0zd35Pc8Qc6jGk+JZxQdXrb/NrSNgAATcN"
+--       , "GGS226Q444N0pAfc188IDcAtQPSJpzbs/1+TPzE4ov/lpHTr91hXr3RLyVgYBI01"
+--       , "jrggfAECgYEAwaC4iDSZQ+8eUx/zR973Lu9mvQxC2BZn6QcOtBcIRBdGRlXfhwuD"
+--       , "UgwVZ2M3atH5ZXFuQ7pRtJtj7KCFy7HUFAJC15RCfLjx+n39bISNp5NOJEdI+UM+"
+--       , "G2xMHv5ywkULV7Jxb+tSgsYIvJ0tBjACkif8ahNjgVJmgMSOgdHR2pkCgYEAwWkN"
+--       , "uquRqKekx4gx1gJYV7Y6tPWcsZpEcgSS7AGNJ4UuGZGGHdStpUoJICn2cFUngYNz"
+--       , "eJXOg+VhQJMqQx9c+u85mg/tJluGaw95tBAafspwvhKewlO9OhQeVInPbXMUwrJ0"
+--       , "PS3XV7c74nxm6Nn4QHlM07orn3lOiWxZF8BBSQkCgYATjwSU3ZtNvW22v9d3PxKA"
+--       , "7zXVitOFuF2usEPP9TOkjSVQHYSCw6r0MrxGwULry2IB2T9mH//42mlxkZVySfg+"
+--       , "PSw7UoKUzqnCv89Fku4sKzkNeRXp99ziMEJQLyuwbAEFTsUepQqkoxRm2QmfQmJA"
+--       , "GUHqBSNcANLR1wj+HA+yoQKBgQCBlqj7RQ+AaGsQwiFaGhIlGtU1AEgv+4QWvRfQ"
+--       , "B64TJ7neqdGp1SFP2U5J/bPASl4A+hl5Vy6a0ysZQEGV3cLH41e98SPdin+C5kiO"
+--       , "LCgEghGOWR2EaOUlr+sui3OvCueDGFynzTo27G+0bdPp+nnKgTvHtTqbTIUhsLX1"
+--       , "IvzbOQKBgH4q36jgBb9T3hjXtWyrytlmFtBdw0i+UiMvMlnOqujGhcnOk5UMyxOQ"
+--       , "sQI+/31jIGbmlE7YaYykR1FH3LzAjO4J1+m7vv5fIRdG8+sI01xTc8UAdbmWtK+5"
+--       , "TK1oLP43BHH5gRAfIlXj2qmap5lEG6If/xYB4MOs8Bui5iKaJlM5"
+--       , "-----END RSA PRIVATE KEY-----"
+--       ]
+-- :}
+-- PrivateKey {private_pub = PublicKey {public_size = 256, public_n = 1846..., public_e = 65537}, private_d = 8823..., private_p = 135..., private_q = 1358..., private_dP = 1373..., private_dQ = 9100..., private_qinv = 8859...}
+--
+rsaKeySecret :: String -> IO (Maybe Signer)
+rsaKeySecret k = do
+    mKeyPair <- toKeyPair <$> readPrivateKey k PwNone
+    mPublicKey <- mapM rsaCopyPublic mKeyPair
+    return $ RSAPrivateKey <$>
+        (fromRSAKey <$> mKeyPair <*> mPublicKey)
+  where
+    fromRSAKey :: RSAKeyPair -> RSAPubKey -> PrivateKey
+    fromRSAKey kp pk = PrivateKey
+        { private_pub = PublicKey
+            { public_size = rsaSize pk
+            , public_n = rsaN pk
+            , public_e = rsaE pk
+            }
+        , private_d = rsaD kp
+        , private_p = rsaP kp
+        , private_q = rsaQ kp
+        , private_dP = fromMaybe 0 $ rsaDMP1 kp
+        , private_dQ = fromMaybe 0 $ rsaDMQ1 kp
+        , private_qinv = fromMaybe 0 $ rsaIQMP kp
+        }
 
 -- | Convert the `NominalDiffTime` into an IntDate. Returns a Nothing if the
 -- argument is invalid (e.g. the NominalDiffTime must be convertible into a
@@ -416,21 +487,34 @@ dotted = T.intercalate "."
 
 -- =================================================================================
 
-calculateDigest :: Algorithm -> Secret -> T.Text -> T.Text
-calculateDigest HS256 (Secret key) msg = TE.decodeUtf8 $ convertToBase Base64URLUnpadded (hmac key (bs msg) :: HMAC SHA256)
-    where 
-        bs = TE.encodeUtf8
+calculateDigest :: Signer -> T.Text -> T.Text
+calculateDigest (HMACSecret key) msg =
+    TE.decodeUtf8 $ convertToBase Base64URLUnpadded (hmac key (TE.encodeUtf8 msg) :: HMAC SHA256)
+
+calculateDigest (RSAPrivateKey key) msg = TE.decodeUtf8
+    $ convertToBase Base64URLUnpadded
+    $ BL.toStrict
+    $ sign key
+    $ BL.fromStrict
+    $ TE.encodeUtf8 msg
 
 -- =================================================================================
 
-type ClaimsMap = Map.Map T.Text Value
+newtype ClaimsMap = ClaimsMap { unClaimsMap :: Map.Map T.Text Value }
+    deriving (Eq, Show)
+
+instance Monoid ClaimsMap where
+  mempty =
+    ClaimsMap mempty
+  mappend (ClaimsMap a) (ClaimsMap b) =
+    ClaimsMap $ mappend a b
 
 fromHashMap :: Object -> ClaimsMap
-fromHashMap = Map.fromList . StrictMap.toList
+fromHashMap = ClaimsMap . Map.fromList . StrictMap.toList
 
 removeRegisteredClaims :: ClaimsMap -> ClaimsMap
-removeRegisteredClaims input = Map.differenceWithKey (\_ _ _ -> Nothing) input registeredClaims
-    where 
+removeRegisteredClaims (ClaimsMap input) = ClaimsMap $ Map.differenceWithKey (\_ _ _ -> Nothing) input registeredClaims
+    where
         registeredClaims = Map.fromList $ map (\e -> (e, Null)) ["iss", "sub", "aud", "exp", "nbf", "iat", "jti"]
 
 instance ToJSON JWTClaimsSet where
@@ -442,7 +526,7 @@ instance ToJSON JWTClaimsSet where
                 , fmap ("nbf" .=) nbf
                 , fmap ("iat" .=) iat
                 , fmap ("jti" .=) jti
-            ] ++ Map.toList (removeRegisteredClaims unregisteredClaims)
+            ] ++ Map.toList (unClaimsMap $ removeRegisteredClaims unregisteredClaims)
 
 instance FromJSON JWTClaimsSet where
         parseJSON = withObject "JWTClaimsSet"
@@ -482,9 +566,11 @@ instance FromJSON NumericDate where
 
 instance ToJSON Algorithm where
     toJSON HS256 = String ("HS256"::T.Text)
+    toJSON RS256 = String ("RS256"::T.Text)
 
 instance FromJSON Algorithm where
     parseJSON (String "HS256") = return HS256
+    parseJSON (String "RS256") = return RS256
     parseJSON _                = mzero
 
 instance ToJSON StringOrURI where
