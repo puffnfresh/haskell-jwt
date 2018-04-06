@@ -3,19 +3,15 @@ image: haskell:7.10
 pipelines:
   default:
     - step:
+        caches:
+          - stack
         script:
           - stack setup
           - stack test
           - stack test jwt:doctests
           # Test the distribution
           - stack sdist && mkdir temp && tar -xf `stack path --dist-dir`/*.tar.gz -C ./temp && cd temp && stack init && stack test
-  branches: # Container for all branch-specific pipelines.
-    master:
-      - step:
-          script:
-            - stack setup
-            - stack test
-            - stack test jwt:doctests
-            # Test the distribution
-            - stack sdist && mkdir temp && tar -xf `stack path --dist-dir`/*.tar.gz -C ./temp && cd temp && stack init && stack test
 
+definitions:
+  caches:
+    stack: ~/.stack-work
