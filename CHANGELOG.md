@@ -3,6 +3,8 @@
 * Support RS256 algorithm
 * Add Monoid for ClaimsMap
 
+Thanks to Patrick Brisbin and Brian McKenna for adding support for RS256.
+
 # 2016-06-02 0.7.2
 
 * Add missing Data.ByteString.ExtendedTests (Thanks to nomeata for reporting
