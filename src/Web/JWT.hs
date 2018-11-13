@@ -40,7 +40,7 @@ module Web.JWT
     -- ** Common
     , tokenIssuer
     , hmacSecret
-    , rsaKeySecret
+    , readRsaSecret
     -- ** JWT structure
     , claims
     , header
@@ -72,18 +72,23 @@ module Web.JWT
     , StringOrURI
     , JWTHeader
     , JOSEHeader
+
+    -- * Deprecated
+    , rsaKeySecret
     ) where
 
+import qualified Data.ByteString.Char8      as C8
 import qualified Data.ByteString.Lazy.Char8 as BL (fromStrict, toStrict)
 import qualified Data.ByteString.Extended as BS
 import qualified Data.Text.Extended         as T
 import qualified Data.Text.Encoding         as TE
 
-import           Codec.Crypto.RSA           (PrivateKey(..), PublicKey(..), sign)
 import           Control.Applicative
 import           Control.Monad
 import           Crypto.Hash.Algorithms
 import           Crypto.MAC.HMAC
+import           Crypto.PubKey.RSA          (PrivateKey)
+import           Crypto.PubKey.RSA.PKCS15   (sign)
 import           Data.ByteArray.Encoding
 import           Data.Aeson                 hiding (decode, encode)
 import qualified Data.Aeson                 as JSON
@@ -92,23 +97,9 @@ import qualified Data.Map                   as Map
 import           Data.Maybe
 import           Data.Scientific
 import           Data.Time.Clock            (NominalDiffTime)
+import           Data.X509                  (PrivKey (PrivKeyRSA))
+import           Data.X509.Memory           (readKeyFileFromMemory)
 import qualified Network.URI                as URI
-import           OpenSSL.EVP.PKey           (toKeyPair)
-import           OpenSSL.PEM                (PemPasswordSupply(..), readPrivateKey)
-import           OpenSSL.RSA
-    ( RSAKeyPair
-    , RSAPubKey
-    , rsaCopyPublic
-    , rsaD
-    , rsaDMP1
-    , rsaDMQ1
-    , rsaE
-    , rsaIQMP
-    , rsaN
-    , rsaP
-    , rsaQ
-    , rsaSize
-    )
 import           Prelude                    hiding (exp)
 
 -- $setup
@@ -378,11 +369,17 @@ hmacSecret = HMACSecret . TE.encodeUtf8
 
 -- | Create an RSAPrivateKey from PEM contents
 --
--- > rsaKeySecret =<< readFile "foo.pem"
+-- Please, consider using 'readRsaSecret' instead.
+rsaKeySecret :: String -> IO (Maybe Signer)
+rsaKeySecret = pure . fmap RSAPrivateKey . readRsaSecret . C8.pack
+
+-- | Create an RSA 'PrivateKey' from PEM contents
+--
+-- > readRsaSecret <$> BS.readFile "foo.pem"
 --
 -- >>> :{
 --   -- A random example key created with `ssh-keygen -t rsa`
---   fmap (\(Just (RSAPrivateKey pk)) -> pk) $ rsaKeySecret $ unlines
+--   fromJust . readRsaSecret . C8.pack $ unlines
 --       [ "-----BEGIN RSA PRIVATE KEY-----"
 --       , "MIIEowIBAAKCAQEAkkmgbLluo5HommstpHr1h53uWfuN3CwYYYR6I6a2MzAHIMIv"
 --       , "8Ak2ha+N2UDeYsfVhZ/DOnE+PMm2RpYSaiYT0l2a7ZkmRSbcyvVFt3XLePJbmUgo"
@@ -414,27 +411,11 @@ hmacSecret = HMACSecret . TE.encodeUtf8
 -- :}
 -- PrivateKey {private_pub = PublicKey {public_size = 256, public_n = 1846..., public_e = 65537}, private_d = 8823..., private_p = 135..., private_q = 1358..., private_dP = 1373..., private_dQ = 9100..., private_qinv = 8859...}
 --
-rsaKeySecret :: String -> IO (Maybe Signer)
-rsaKeySecret k = do
-    mKeyPair <- toKeyPair <$> readPrivateKey k PwNone
-    mPublicKey <- mapM rsaCopyPublic mKeyPair
-    return $ RSAPrivateKey <$>
-        (fromRSAKey <$> mKeyPair <*> mPublicKey)
-  where
-    fromRSAKey :: RSAKeyPair -> RSAPubKey -> PrivateKey
-    fromRSAKey kp pk = PrivateKey
-        { private_pub = PublicKey
-            { public_size = rsaSize pk
-            , public_n = rsaN pk
-            , public_e = rsaE pk
-            }
-        , private_d = rsaD kp
-        , private_p = rsaP kp
-        , private_q = rsaQ kp
-        , private_dP = fromMaybe 0 $ rsaDMP1 kp
-        , private_dQ = fromMaybe 0 $ rsaDMQ1 kp
-        , private_qinv = fromMaybe 0 $ rsaIQMP kp
-        }
+readRsaSecret :: BS.ByteString -> (Maybe PrivateKey)
+readRsaSecret bs =
+    case readKeyFileFromMemory bs of
+        [(PrivKeyRSA k)] -> Just k
+        _                -> Nothing
 
 -- | Convert the `NominalDiffTime` into an IntDate. Returns a Nothing if the
 -- argument is invalid (e.g. the NominalDiffTime must be convertible into a
@@ -494,10 +475,14 @@ calculateDigest (HMACSecret key) msg =
 
 calculateDigest (RSAPrivateKey key) msg = TE.decodeUtf8
     $ convertToBase Base64URLUnpadded
-    $ BL.toStrict
-    $ sign key
-    $ BL.fromStrict
+    $ sign'
     $ TE.encodeUtf8 msg
+  where
+    sign' :: BS.ByteString -> BS.ByteString
+    sign' bs = case sign Nothing (Just SHA256) key bs of
+        Right sig -> sig
+        Left  _   -> error "impossible"  -- This function can only fail with @SignatureTooLong@,
+                                         -- which is impossible because we use a hash.
 
 -- =================================================================================
 
