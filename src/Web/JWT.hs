@@ -96,6 +96,7 @@ import qualified Data.HashMap.Strict        as StrictMap
 import qualified Data.Map                   as Map
 import           Data.Maybe
 import           Data.Scientific
+import qualified Data.Semigroup             as Semigroup
 import           Data.Time.Clock            (NominalDiffTime)
 import           Data.X509                  (PrivKey (PrivKeyRSA))
 import           Data.X509.Memory           (readKeyFileFromMemory)
@@ -200,8 +201,11 @@ data JOSEHeader = JOSEHeader {
 instance Monoid JOSEHeader where
     mempty =
       JOSEHeader Nothing Nothing Nothing
-    mappend (JOSEHeader a b c) (JOSEHeader a' b' c') =
-      JOSEHeader (a <|> a') (b <|> b') (c <|> c')
+    mappend = (Semigroup.<>)
+
+instance Semigroup.Semigroup JOSEHeader where
+  JOSEHeader a b c <> JOSEHeader a' b' c' =
+    JOSEHeader (a <|> a') (b <|> b') (c <|> c')
 
 -- | The JWT Claims Set represents a JSON object whose members are the claims conveyed by the JWT.
 data JWTClaimsSet = JWTClaimsSet {
@@ -236,8 +240,11 @@ data JWTClaimsSet = JWTClaimsSet {
 instance Monoid JWTClaimsSet where
   mempty =
     JWTClaimsSet Nothing Nothing Nothing Nothing Nothing Nothing Nothing $ ClaimsMap Map.empty
-  mappend (JWTClaimsSet a b c d e f g h) (JWTClaimsSet a' b' c' d' e' f' g' h') =
-    JWTClaimsSet (a <|> a') (b <|> b') (c <|> c') (d <|> d') (e <|> e') (f <|> f') (g <|> g') (mappend h h')
+  mappend = (Semigroup.<>)
+
+instance Semigroup.Semigroup JWTClaimsSet where
+  JWTClaimsSet a b c d e f g h <> JWTClaimsSet a' b' c' d' e' f' g' h' =
+    JWTClaimsSet (a <|> a') (b <|> b') (c <|> c') (d <|> d') (e <|> e') (f <|> f') (g <|> g') (h Semigroup.<> h')
 
 -- | Encode a claims set using the given secret
 --
@@ -492,8 +499,11 @@ newtype ClaimsMap = ClaimsMap { unClaimsMap :: Map.Map T.Text Value }
 instance Monoid ClaimsMap where
   mempty =
     ClaimsMap mempty
-  mappend (ClaimsMap a) (ClaimsMap b) =
-    ClaimsMap $ mappend a b
+  mappend = (Semigroup.<>)
+
+instance Semigroup.Semigroup ClaimsMap where
+  ClaimsMap a <> ClaimsMap b =
+    ClaimsMap $ a Semigroup.<> b
 
 fromHashMap :: Object -> ClaimsMap
 fromHashMap = ClaimsMap . Map.fromList . StrictMap.toList
