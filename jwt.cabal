@@ -2,12 +2,12 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                jwt
-version:             0.8.0
+version:             0.8.1
 synopsis:            JSON Web Token (JWT) decoding and encoding
 license:             MIT
 license-file:        LICENSE
-author:              Stefan Saasen
-maintainer:          stefan@saasen.me
+author:              Brian McKenna
+maintainer:          brian@brianmckenna.org
 homepage:            https://bitbucket.org/ssaasen/haskell-jwt
 bug-reports:         https://bitbucket.org/ssaasen/haskell-jwt/issues
 category:            Web
