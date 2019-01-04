@@ -1,3 +1,8 @@
+# 2018-01-04 0.9.0
+
+* Switch from RSA and HsOpenSSL to x509-store
+* Add Semigroup instances for GHC 8.6 compatibility
+
 # 2018-03-21 0.8.0
 
 * Support RS256 algorithm
