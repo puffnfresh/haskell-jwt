@@ -370,7 +370,7 @@ tokenIssuer :: JSON -> Maybe StringOrURI
 tokenIssuer = decode >=> fmap pure claims >=> iss
 
 -- | Create a Secret using the given key.
--- Consider using `binarySecret` instead if your key is not already a "Data.Text".
+-- Consider using `HMACSecret` instead if your key is not already a "Data.Text".
 hmacSecret :: T.Text -> Signer
 hmacSecret = HMACSecret . TE.encodeUtf8
 
@@ -418,7 +418,7 @@ rsaKeySecret = pure . fmap RSAPrivateKey . readRsaSecret . C8.pack
 -- :}
 -- PrivateKey {private_pub = PublicKey {public_size = 256, public_n = 1846..., public_e = 65537}, private_d = 8823..., private_p = 135..., private_q = 1358..., private_dP = 1373..., private_dQ = 9100..., private_qinv = 8859...}
 --
-readRsaSecret :: BS.ByteString -> (Maybe PrivateKey)
+readRsaSecret :: BS.ByteString -> Maybe PrivateKey
 readRsaSecret bs =
     case readKeyFileFromMemory bs of
         [(PrivKeyRSA k)] -> Just k
