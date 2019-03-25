@@ -52,10 +52,6 @@ module Web.JWT
     , stringOrURI
     , stringOrURIToText
     , secondsSinceEpoch
-    -- ** JWT header
-    , typ
-    , cty
-    , alg
 
     -- * Types
     , UnverifiedJWT
@@ -63,7 +59,6 @@ module Web.JWT
     , Signature
     , Signer(..)
     , JWT
-    , JSON
     , Algorithm(..)
     , JWTClaimsSet(..)
     , ClaimsMap(..)
@@ -71,7 +66,7 @@ module Web.JWT
     , NumericDate
     , StringOrURI
     , JWTHeader
-    , JOSEHeader
+    , JOSEHeader(..)
 
     -- * Deprecated
     , rsaKeySecret
@@ -108,8 +103,6 @@ import           Prelude                    hiding (exp)
 -- extension:
 --
 -- >>> :set -XOverloadedStrings
-
-type JSON = T.Text
 
 {-# DEPRECATED JWTHeader "Use JOSEHeader instead. JWTHeader will be removed in 1.0" #-}
 type JWTHeader = JOSEHeader
@@ -196,16 +189,24 @@ data JOSEHeader = JOSEHeader {
     --
     -- See <http://tools.ietf.org/html/draft-ietf-jose-json-web-algorithms-23#page-6>
   , alg :: Maybe Algorithm
+    -- | The "kid" (key ID) Header Parameter is a hint indicating which key
+    -- was used to secure the JWS.  This parameter allows originators to
+    -- explicitly signal a change of key to recipients.  The structure of
+    -- the "kid" value is unspecified.  Its value MUST be a case-sensitive
+    -- string.  Use of this Header Parameter is OPTIONAL.
+    --
+    -- See <https://tools.ietf.org/html/rfc7515#section-4.1.4>
+  , kid :: Maybe T.Text
 } deriving (Eq, Show)
 
 instance Monoid JOSEHeader where
     mempty =
-      JOSEHeader Nothing Nothing Nothing
+      JOSEHeader Nothing Nothing Nothing Nothing
     mappend = (Semigroup.<>)
 
 instance Semigroup.Semigroup JOSEHeader where
-  JOSEHeader a b c <> JOSEHeader a' b' c' =
-    JOSEHeader (a <|> a') (b <|> b') (c <|> c')
+  JOSEHeader a b c d <> JOSEHeader a' b' c' d' =
+    JOSEHeader (a <|> a') (b <|> b') (c <|> c') (d <|> d')
 
 -- | The JWT Claims Set represents a JSON object whose members are the claims conveyed by the JWT.
 data JWTClaimsSet = JWTClaimsSet {
@@ -255,21 +256,21 @@ instance Semigroup.Semigroup JWTClaimsSet where
 --       , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
 --      }
 --      key = hmacSecret "secret-key"
---  in encodeSigned key cs
+--  in encodeSigned key mempty cs
 -- @
 -- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.vHQHuG3ujbnBUmEp-fSUtYxk27rLiP2hrNhxpyWhb2E"
-encodeSigned :: Signer -> JWTClaimsSet -> JSON
-encodeSigned signer claims' = dotted [header', claim, signature']
+encodeSigned :: Signer -> JOSEHeader -> JWTClaimsSet -> T.Text
+encodeSigned signer header' claims' = dotted [header'', claim, signature']
     where claim     = encodeJWT claims'
           algo      = case signer of
                         HMACSecret _    -> HS256
                         RSAPrivateKey _ -> RS256
 
-          header'   = encodeJWT mempty {
+          header''  = encodeJWT header' {
                         typ = Just "JWT"
                       , alg = Just algo
                       }
-          signature' = calculateDigest signer (dotted [header', claim])
+          signature' = calculateDigest signer (dotted [header'', claim])
 
 -- | Encode a claims set without signing it
 --
@@ -280,13 +281,13 @@ encodeSigned signer claims' = dotted [header', claim, signature']
 --    , iat = numericDate 1394700934
 --    , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
 --  }
---  in encodeUnsigned cs
+--  in encodeUnsigned cs mempty
 --  @
 -- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjEzOTQ3MDA5MzQsImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlLCJpc3MiOiJGb28ifQ."
-encodeUnsigned :: JWTClaimsSet -> JSON
-encodeUnsigned claims' = dotted [header', claim, ""]
+encodeUnsigned :: JWTClaimsSet -> JOSEHeader -> T.Text
+encodeUnsigned claims' header' = dotted [header'', claim, ""]
     where claim     = encodeJWT claims'
-          header'   = encodeJWT mempty {
+          header''  = encodeJWT header' {
                         typ = Just "JWT"
                       , alg = Just HS256
                       }
@@ -302,7 +303,7 @@ encodeUnsigned claims' = dotted [header', claim, ""]
 --      mJwt = decode input
 --  in fmap header mJwt
 -- :}
--- Just (JOSEHeader {typ = Just "JWT", cty = Nothing, alg = Just HS256})
+-- Just (JOSEHeader {typ = Just "JWT", cty = Nothing, alg = Just HS256, kid = Nothing})
 --
 -- and
 --
@@ -313,7 +314,7 @@ encodeUnsigned claims' = dotted [header', claim, ""]
 --  in fmap claims mJwt
 -- :}
 -- Just (JWTClaimsSet {iss = Nothing, sub = Nothing, aud = Nothing, exp = Nothing, nbf = Nothing, iat = Nothing, jti = Nothing, unregisteredClaims = ClaimsMap {unClaimsMap = fromList [("some",String "payload")]}})
-decode :: JSON -> Maybe (JWT UnverifiedJWT)
+decode :: T.Text -> Maybe (JWT UnverifiedJWT)
 decode input = do
     (h,c,s) <- extractElems $ T.splitOn "." input
     let header' = parseJWT h
@@ -362,11 +363,11 @@ verify signer (Unverified header' claims' unverifiedSignature originalClaim) = d
 --  in signature =<< mJwt
 -- :}
 -- Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
-decodeAndVerifySignature :: Signer -> JSON -> Maybe (JWT VerifiedJWT)
+decodeAndVerifySignature :: Signer -> T.Text -> Maybe (JWT VerifiedJWT)
 decodeAndVerifySignature signer input = verify signer =<< decode input
 
 -- | Try to extract the value for the issue claim field 'iss' from the web token in JSON form
-tokenIssuer :: JSON -> Maybe StringOrURI
+tokenIssuer :: T.Text -> Maybe StringOrURI
 tokenIssuer = decode >=> fmap pure claims >=> iss
 
 -- | Create a Secret using the given key.
@@ -544,13 +545,15 @@ instance FromJSON JOSEHeader where
                     (\o -> JOSEHeader
                     <$> o .:? "typ"
                     <*> o .:? "cty"
-                    <*> o .:? "alg")
+                    <*> o .:? "alg"
+                    <*> o .:? "kid")
 
 instance ToJSON JOSEHeader where
     toJSON JOSEHeader{..} = object $ catMaybes [
                   fmap ("typ" .=) typ
                 , fmap ("cty" .=) cty
                 , fmap ("alg" .=) alg
+                , fmap ("kid" .=) kid
             ]
 
 instance ToJSON NumericDate where
