@@ -59,7 +59,6 @@ module Web.JWT
     , Signature
     , Signer(..)
     , JWT
-    , JSON
     , Algorithm(..)
     , JWTClaimsSet(..)
     , ClaimsMap(..)
@@ -104,8 +103,6 @@ import           Prelude                    hiding (exp)
 -- extension:
 --
 -- >>> :set -XOverloadedStrings
-
-type JSON = T.Text
 
 {-# DEPRECATED JWTHeader "Use JOSEHeader instead. JWTHeader will be removed in 1.0" #-}
 type JWTHeader = JOSEHeader
@@ -262,7 +259,7 @@ instance Semigroup.Semigroup JWTClaimsSet where
 --  in encodeSigned key mempty cs
 -- @
 -- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.vHQHuG3ujbnBUmEp-fSUtYxk27rLiP2hrNhxpyWhb2E"
-encodeSigned :: Signer -> JOSEHeader -> JWTClaimsSet -> JSON
+encodeSigned :: Signer -> JOSEHeader -> JWTClaimsSet -> T.Text
 encodeSigned signer header' claims' = dotted [header'', claim, signature']
     where claim     = encodeJWT claims'
           algo      = case signer of
@@ -287,7 +284,7 @@ encodeSigned signer header' claims' = dotted [header'', claim, signature']
 --  in encodeUnsigned cs mempty
 --  @
 -- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjEzOTQ3MDA5MzQsImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlLCJpc3MiOiJGb28ifQ."
-encodeUnsigned :: JWTClaimsSet -> JOSEHeader -> JSON
+encodeUnsigned :: JWTClaimsSet -> JOSEHeader -> T.Text
 encodeUnsigned claims' header' = dotted [header'', claim, ""]
     where claim     = encodeJWT claims'
           header''  = encodeJWT header' {
@@ -317,7 +314,7 @@ encodeUnsigned claims' header' = dotted [header'', claim, ""]
 --  in fmap claims mJwt
 -- :}
 -- Just (JWTClaimsSet {iss = Nothing, sub = Nothing, aud = Nothing, exp = Nothing, nbf = Nothing, iat = Nothing, jti = Nothing, unregisteredClaims = ClaimsMap {unClaimsMap = fromList [("some",String "payload")]}})
-decode :: JSON -> Maybe (JWT UnverifiedJWT)
+decode :: T.Text -> Maybe (JWT UnverifiedJWT)
 decode input = do
     (h,c,s) <- extractElems $ T.splitOn "." input
     let header' = parseJWT h
@@ -366,11 +363,11 @@ verify signer (Unverified header' claims' unverifiedSignature originalClaim) = d
 --  in signature =<< mJwt
 -- :}
 -- Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
-decodeAndVerifySignature :: Signer -> JSON -> Maybe (JWT VerifiedJWT)
+decodeAndVerifySignature :: Signer -> T.Text -> Maybe (JWT VerifiedJWT)
 decodeAndVerifySignature signer input = verify signer =<< decode input
 
 -- | Try to extract the value for the issue claim field 'iss' from the web token in JSON form
-tokenIssuer :: JSON -> Maybe StringOrURI
+tokenIssuer :: T.Text -> Maybe StringOrURI
 tokenIssuer = decode >=> fmap pure claims >=> iss
 
 -- | Create a Secret using the given key.
