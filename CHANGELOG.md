@@ -1,3 +1,8 @@
+# 2019-03-25 0.10.0
+
+* Add "kid" and allow specifying JOSEHeader
+* Clean up docs and remove confusing JSON type alias
+
 # 2018-01-04 0.9.0
 
 * Switch from RSA and HsOpenSSL to x509-store
