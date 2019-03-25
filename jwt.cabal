@@ -32,7 +32,7 @@ source-repository head
 library
   exposed-modules:     Web.JWT
   other-modules:       Data.Text.Extended, Data.ByteString.Extended
-  build-depends:       base >= 4.6 && < 5
+  build-depends:       base >= 4.8 && < 5
                      , cryptonite               >= 0.6
                      , memory                   >= 0.8
                      , bytestring               >= 0.10
@@ -71,7 +71,7 @@ test-suite testsuite
                      , Data.ByteString.Extended
                      , Data.ByteString.ExtendedTests
   hs-source-dirs:      tests/src, src
-  build-depends:       base < 5 && >= 4.4
+  build-depends:       base < 5 && >= 4.8
                      , tasty >= 0.7
                      , tasty-th >= 0.1
                      , tasty-hunit >= 0.4
@@ -103,6 +103,6 @@ test-suite doctests
   type:                exitcode-stdio-1.0
   main-is:             doctests.hs
   ghc-options:         -threaded
-  build-depends:       base < 5 && >= 4.4
+  build-depends:       base < 5 && >= 4.8
                      , jwt
                      , doctest     >= 0.9.11
