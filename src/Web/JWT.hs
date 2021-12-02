@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                #-}
 {-# LANGUAGE EmptyDataDecls     #-}
 {-# LANGUAGE FlexibleInstances  #-}
 {-# LANGUAGE GADTs              #-}
@@ -72,6 +73,7 @@ module Web.JWT
     , rsaKeySecret
     ) where
 
+import           Data.Bifunctor             (first)
 import qualified Data.ByteString.Char8      as C8
 import qualified Data.ByteString.Lazy.Char8 as BL (fromStrict, toStrict)
 import qualified Data.ByteString.Extended as BS
@@ -87,7 +89,6 @@ import           Crypto.PubKey.RSA.PKCS15   (sign)
 import           Data.ByteArray.Encoding
 import           Data.Aeson                 hiding (decode, encode)
 import qualified Data.Aeson                 as JSON
-import qualified Data.HashMap.Strict        as StrictMap
 import qualified Data.Map                   as Map
 import           Data.Maybe
 import           Data.Scientific
@@ -97,6 +98,13 @@ import           Data.X509                  (PrivKey (PrivKeyRSA))
 import           Data.X509.Memory           (readKeyFileFromMemory)
 import qualified Network.URI                as URI
 import           Prelude                    hiding (exp)
+
+#if MIN_VERSION_aeson(2,0,0)
+import qualified Data.Aeson.Key             as Key
+import qualified Data.Aeson.KeyMap          as KeyMap
+#else
+import qualified Data.HashMap.Strict        as KeyMap
+#endif
 
 -- $setup
 -- The code examples in this module require GHC's `OverloadedStrings`
@@ -507,7 +515,13 @@ instance Semigroup.Semigroup ClaimsMap where
     ClaimsMap $ a Semigroup.<> b
 
 fromHashMap :: Object -> ClaimsMap
-fromHashMap = ClaimsMap . Map.fromList . StrictMap.toList
+fromHashMap = ClaimsMap . Map.fromList . map (first toText) . KeyMap.toList
+  where
+#if MIN_VERSION_aeson(2,0,0)
+    toText = Key.toText
+#else
+    toText = id
+#endif
 
 removeRegisteredClaims :: ClaimsMap -> ClaimsMap
 removeRegisteredClaims (ClaimsMap input) = ClaimsMap $ Map.differenceWithKey (\_ _ _ -> Nothing) input registeredClaims
@@ -523,14 +537,20 @@ instance ToJSON JWTClaimsSet where
                 , fmap ("nbf" .=) nbf
                 , fmap ("iat" .=) iat
                 , fmap ("jti" .=) jti
-            ] ++ Map.toList (unClaimsMap $ removeRegisteredClaims unregisteredClaims)
+            ] ++ map (first fromText) (Map.toList $ unClaimsMap $ removeRegisteredClaims unregisteredClaims)
+      where
+#if MIN_VERSION_aeson(2,0,0)
+        fromText = Key.fromText
+#else
+        fromText = id
+#endif
 
 instance FromJSON JWTClaimsSet where
         parseJSON = withObject "JWTClaimsSet"
                      (\o -> JWTClaimsSet
                      <$> o .:? "iss"
                      <*> o .:? "sub"
-                     <*> case StrictMap.lookup "aud" o of
+                     <*> case KeyMap.lookup "aud" o of
                          (Just as@(JSON.Array _)) -> Just <$> Right <$> parseJSON as
                          (Just (JSON.String t))   -> pure $ Left <$> stringOrURI t
                          _                        -> pure Nothing
