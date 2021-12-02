@@ -1,3 +1,7 @@
+# 2021-12-02 0.10.1
+
+* Add support for Aeson 2.x
+
 # 2019-03-25 0.10.0
 
 * Add "kid" and allow specifying JOSEHeader
