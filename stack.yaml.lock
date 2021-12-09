@@ -18,6 +18,13 @@ packages:
       sha256: 475787f61228953d94d7cf2ed2495e72d13cde945dad9ee5d9f315f7c64741ff
   original:
     hackage: lens-aeson-1.1.2
+- completed:
+    hackage: cryptostore-0.2.1.0@sha256:9896e2984f36a1c8790f057fd5ce3da4cbcaf8aa73eb2d9277916886978c5b19,3881
+    pantry-tree:
+      size: 8596
+      sha256: e392f8dded050690140636b81433fb350bd87dd21643dde9a2f0aa344cf038e5
+  original:
+    hackage: cryptostore-0.2.1.0
 snapshots:
 - completed:
     size: 584682

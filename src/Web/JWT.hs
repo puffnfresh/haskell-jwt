@@ -42,6 +42,8 @@ module Web.JWT
     , tokenIssuer
     , hmacSecret
     , readRsaSecret
+    , readRsaPublicKey
+    , toVerify
     -- ** JWT structure
     , claims
     , header
@@ -58,7 +60,8 @@ module Web.JWT
     , UnverifiedJWT
     , VerifiedJWT
     , Signature
-    , Signer(..)
+    , VerifySigner(..)
+    , EncodeSigner(..)
     , JWT
     , Algorithm(..)
     , JWTClaimsSet(..)
@@ -84,8 +87,9 @@ import           Control.Applicative
 import           Control.Monad
 import           Crypto.Hash.Algorithms
 import           Crypto.MAC.HMAC
-import           Crypto.PubKey.RSA          (PrivateKey)
-import           Crypto.PubKey.RSA.PKCS15   (sign)
+import           Crypto.PubKey.RSA          (PrivateKey, PublicKey)
+import qualified Crypto.PubKey.RSA.PKCS15   as RSA
+import           Crypto.Store.X509          (readPubKeyFileFromMemory)
 import           Data.ByteArray.Encoding
 import           Data.Aeson                 hiding (decode, encode)
 import qualified Data.Aeson                 as JSON
@@ -94,7 +98,7 @@ import           Data.Maybe
 import           Data.Scientific
 import qualified Data.Semigroup             as Semigroup
 import           Data.Time.Clock            (NominalDiffTime)
-import           Data.X509                  (PrivKey (PrivKeyRSA))
+import           Data.X509                  (PrivKey (PrivKeyRSA), PubKey (PubKeyRSA))
 import           Data.X509.Memory           (readKeyFileFromMemory)
 import qualified Network.URI                as URI
 import           Prelude                    hiding (exp)
@@ -115,8 +119,12 @@ import qualified Data.HashMap.Strict        as KeyMap
 {-# DEPRECATED JWTHeader "Use JOSEHeader instead. JWTHeader will be removed in 1.0" #-}
 type JWTHeader = JOSEHeader
 
-data Signer = HMACSecret BS.ByteString
-            | RSAPrivateKey PrivateKey
+data VerifySigner = VerifyHMACSecret BS.ByteString
+                  | VerifyRSAPrivateKey PrivateKey
+                  | VerifyRSAPublicKey PublicKey
+
+data EncodeSigner = EncodeHMACSecret BS.ByteString
+                  | EncodeRSAPrivateKey PrivateKey
 
 newtype Signature = Signature T.Text deriving (Show)
 
@@ -267,12 +275,12 @@ instance Semigroup.Semigroup JWTClaimsSet where
 --  in encodeSigned key mempty cs
 -- @
 -- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.vHQHuG3ujbnBUmEp-fSUtYxk27rLiP2hrNhxpyWhb2E"
-encodeSigned :: Signer -> JOSEHeader -> JWTClaimsSet -> T.Text
+encodeSigned :: EncodeSigner -> JOSEHeader -> JWTClaimsSet -> T.Text
 encodeSigned signer header' claims' = dotted [header'', claim, signature']
     where claim     = encodeJWT claims'
           algo      = case signer of
-                        HMACSecret _    -> HS256
-                        RSAPrivateKey _ -> RS256
+                        EncodeHMACSecret _    -> HS256
+                        EncodeRSAPrivateKey _ -> RS256
 
           header''  = encodeJWT header' {
                         typ = Just "JWT"
@@ -352,11 +360,10 @@ decode input = do
 --  in signature =<< mVerifiedJwt
 -- :}
 -- Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
-verify :: Signer -> JWT UnverifiedJWT -> Maybe (JWT VerifiedJWT)
+verify :: VerifySigner -> JWT UnverifiedJWT -> Maybe (JWT VerifiedJWT)
 verify signer (Unverified header' claims' unverifiedSignature originalClaim) = do
-   let calculatedSignature = Signature $ calculateDigest signer originalClaim
-   guard (unverifiedSignature == calculatedSignature)
-   pure $ Verified header' claims' calculatedSignature
+   guard (verifyDigest signer unverifiedSignature originalClaim)
+   pure $ Verified header' claims' unverifiedSignature
 
 -- | Decode a claims set and verify that the signature matches by using the supplied secret.
 -- The algorithm is based on the supplied header value.
@@ -371,7 +378,7 @@ verify signer (Unverified header' claims' unverifiedSignature originalClaim) = d
 --  in signature =<< mJwt
 -- :}
 -- Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
-decodeAndVerifySignature :: Signer -> T.Text -> Maybe (JWT VerifiedJWT)
+decodeAndVerifySignature :: VerifySigner -> T.Text -> Maybe (JWT VerifiedJWT)
 decodeAndVerifySignature signer input = verify signer =<< decode input
 
 -- | Try to extract the value for the issue claim field 'iss' from the web token in JSON form
@@ -380,14 +387,20 @@ tokenIssuer = decode >=> fmap pure claims >=> iss
 
 -- | Create a Secret using the given key.
 -- Consider using `HMACSecret` instead if your key is not already a "Data.Text".
-hmacSecret :: T.Text -> Signer
-hmacSecret = HMACSecret . TE.encodeUtf8
+hmacSecret :: T.Text -> EncodeSigner
+hmacSecret = EncodeHMACSecret . TE.encodeUtf8
+
+-- | Converts an EncodeSigner into a VerifySigner
+-- If you can encode then you can always verify; but the reverse is not always true.
+toVerify :: EncodeSigner -> VerifySigner
+toVerify (EncodeHMACSecret s) = VerifyHMACSecret s
+toVerify (EncodeRSAPrivateKey pk) = VerifyRSAPrivateKey pk
 
 -- | Create an RSAPrivateKey from PEM contents
 --
 -- Please, consider using 'readRsaSecret' instead.
-rsaKeySecret :: String -> IO (Maybe Signer)
-rsaKeySecret = pure . fmap RSAPrivateKey . readRsaSecret . C8.pack
+rsaKeySecret :: String -> IO (Maybe EncodeSigner)
+rsaKeySecret = pure . fmap EncodeRSAPrivateKey . readRsaSecret . C8.pack
 
 -- | Create an RSA 'PrivateKey' from PEM contents
 --
@@ -432,6 +445,12 @@ readRsaSecret bs =
     case readKeyFileFromMemory bs of
         [(PrivKeyRSA k)] -> Just k
         _                -> Nothing
+
+readRsaPublicKey :: BS.ByteString -> Maybe PublicKey
+readRsaPublicKey bs =
+    case readPubKeyFileFromMemory bs of
+          [(PubKeyRSA k)] -> Just k
+          _                -> Nothing
 
 -- | Convert the `NominalDiffTime` into an IntDate. Returns a Nothing if the
 -- argument is invalid (e.g. the NominalDiffTime must be convertible into a
@@ -485,20 +504,25 @@ dotted = T.intercalate "."
 
 -- =================================================================================
 
-calculateDigest :: Signer -> T.Text -> T.Text
-calculateDigest (HMACSecret key) msg =
+calculateDigest :: EncodeSigner -> T.Text -> T.Text
+calculateDigest (EncodeHMACSecret key) msg =
     TE.decodeUtf8 $ convertToBase Base64URLUnpadded (hmac key (TE.encodeUtf8 msg) :: HMAC SHA256)
 
-calculateDigest (RSAPrivateKey key) msg = TE.decodeUtf8
+calculateDigest (EncodeRSAPrivateKey key) msg = TE.decodeUtf8
     $ convertToBase Base64URLUnpadded
     $ sign'
     $ TE.encodeUtf8 msg
   where
     sign' :: BS.ByteString -> BS.ByteString
-    sign' bs = case sign Nothing (Just SHA256) key bs of
+    sign' bs = case RSA.sign Nothing (Just SHA256) key bs of
         Right sig -> sig
         Left  _   -> error "impossible"  -- This function can only fail with @SignatureTooLong@,
                                          -- which is impossible because we use a hash.
+
+verifyDigest :: VerifySigner -> Signature -> T.Text -> Bool
+verifyDigest (VerifyHMACSecret key) unverifiedSig msg = unverifiedSig == (Signature $ calculateDigest (EncodeHMACSecret key) msg)
+verifyDigest (VerifyRSAPrivateKey pk) unverifiedSig msg = unverifiedSig == (Signature $ calculateDigest (EncodeRSAPrivateKey pk) msg)
+verifyDigest (VerifyRSAPublicKey pk) (Signature rawSig) msg = RSA.verify (Just SHA256) pk (TE.encodeUtf8 msg) (TE.encodeUtf8 rawSig)
 
 -- =================================================================================
 
