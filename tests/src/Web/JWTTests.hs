@@ -234,11 +234,7 @@ prop_rsa_verify_with_public_key = f
     where f :: Keypair -> JWTClaimsSet -> Bool
           f kp claims' = let encodeSigner = EncodeRSAPrivateKey . kpPrivate $ kp
                              verifySigner = VerifyRSAPublicKey . kpPublic $ kp
-                             jwtHeader = mempty
-                                { typ = Just "JWT"
-                                , alg = Just RS256
-                                }
-                             signedToken = encodeSigned encodeSigner jwtHeader claims'
+                             signedToken = encodeSigned encodeSigner mempty claims'
                          in isJust $ decodeAndVerifySignature verifySigner signedToken
 
 data Keypair = Keypair
