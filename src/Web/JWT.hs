@@ -520,8 +520,8 @@ calculateDigest (EncodeRSAPrivateKey key) msg = TE.decodeUtf8
                                          -- which is impossible because we use a hash.
 
 verifyDigest :: VerifySigner -> Signature -> T.Text -> Bool
-verifyDigest (VerifyHMACSecret key) unverifiedSig msg = unverifiedSig == (Signature $ calculateDigest (EncodeHMACSecret key) msg)
-verifyDigest (VerifyRSAPrivateKey pk) unverifiedSig msg = unverifiedSig == (Signature $ calculateDigest (EncodeRSAPrivateKey pk) msg)
+verifyDigest (VerifyHMACSecret key) unverifiedSig msg = unverifiedSig == Signature (calculateDigest (EncodeHMACSecret key) msg)
+verifyDigest (VerifyRSAPrivateKey pk) unverifiedSig msg = unverifiedSig == Signature (calculateDigest (EncodeRSAPrivateKey pk) msg)
 verifyDigest (VerifyRSAPublicKey pk) (Signature rawSig) msg = RSA.verify (Just SHA256) pk (TE.encodeUtf8 msg) (TE.encodeUtf8 rawSig)
 
 -- =================================================================================

@@ -22,6 +22,9 @@ import           Data.Maybe
 import           Data.String (fromString)
 import           Data.Time
 import           Web.JWT
+import qualified Crypto.PubKey.RSA as RSA
+import qualified Crypto.Random.Types as CT
+import qualified Data.ByteArray as BA
 
 defaultTestGroup :: TestTree
 defaultTestGroup = $(testGroupGenerator)
@@ -227,6 +230,31 @@ prop_encode_decode_verify_signature = f
                                Just verified = (decodeAndVerifySignature (toVerify key) $ encodeSigned key mempty claims')
                            in claims verified == claims'
 
+prop_rsa_verify_with_public_key = f
+    where f :: Keypair -> JWTClaimsSet -> Bool
+          f kp claims' = let encodeSigner = EncodeRSAPrivateKey . kpPrivate $ kp
+                             verifySigner = VerifyRSAPublicKey . kpPublic $ kp
+                             jwtHeader = mempty
+                                { typ = Just "JWT"
+                                , alg = Just RS256
+                                }
+                             signedToken = encodeSigned encodeSigner jwtHeader claims'
+                         in isJust $ decodeAndVerifySignature verifySigner signedToken
+
+data Keypair = Keypair
+    { kpPrivate :: RSA.PrivateKey
+    , kpPublic :: RSA.PublicKey
+    } deriving (Show)
+
+instance Arbitrary (Keypair) where
+    arbitrary = do
+        (pubKey, privateKey) <- RSA.generate 256 3
+        return $ Keypair { kpPrivate = privateKey, kpPublic = pubKey }
+
+instance CT.MonadRandom Gen where
+    getRandomBytes size = do
+        bytes <- vector size
+        return . BA.pack $ bytes
 
 instance Arbitrary JWTClaimsSet where
     arbitrary = JWTClaimsSet <$> arbitrary
