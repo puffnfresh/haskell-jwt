@@ -522,7 +522,12 @@ calculateDigest (EncodeRSAPrivateKey key) msg = TE.decodeUtf8
 verifyDigest :: VerifySigner -> Signature -> T.Text -> Bool
 verifyDigest (VerifyHMACSecret key) unverifiedSig msg = unverifiedSig == Signature (calculateDigest (EncodeHMACSecret key) msg)
 verifyDigest (VerifyRSAPrivateKey pk) unverifiedSig msg = unverifiedSig == Signature (calculateDigest (EncodeRSAPrivateKey pk) msg)
-verifyDigest (VerifyRSAPublicKey pk) (Signature rawSig) msg = RSA.verify (Just SHA256) pk (TE.encodeUtf8 msg) (TE.encodeUtf8 rawSig)
+verifyDigest (VerifyRSAPublicKey pk) (Signature base64Sig) msg =
+  let
+    decodedSig =
+      convertFromBase Base64URLUnpadded (TE.encodeUtf8 base64Sig)
+  in
+    either (pure False) (RSA.verify (Just SHA256) pk (TE.encodeUtf8 msg)) decodedSig
 
 -- =================================================================================
 

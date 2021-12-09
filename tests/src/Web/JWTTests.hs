@@ -230,7 +230,8 @@ prop_encode_decode_verify_signature = f
                                Just verified = (decodeAndVerifySignature (toVerify key) $ encodeSigned key mempty claims')
                            in claims verified == claims'
 
-prop_rsa_verify_with_public_key = f
+-- Generating a keypair takes over a second. Let's only do this a few times.
+prop_rsa_verify_with_public_key = withMaxSuccess 20 f
     where f :: Keypair -> JWTClaimsSet -> Bool
           f kp claims' = let encodeSigner = EncodeRSAPrivateKey . kpPrivate $ kp
                              verifySigner = VerifyRSAPublicKey . kpPublic $ kp
