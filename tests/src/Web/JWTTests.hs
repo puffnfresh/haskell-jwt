@@ -12,11 +12,11 @@ import           Test.Tasty
 import           Test.Tasty.TH
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
-import qualified Test.QuickCheck as QC
+import qualified Test.QuickCheck       as QC
 import qualified Data.Map              as Map
 import qualified Data.Text             as T
 import qualified Data.Text.Lazy        as TL
-import qualified Data.ByteString as BS
+import qualified Data.ByteString       as BS
 import           Data.Aeson.Types
 import           Data.Maybe
 import           Data.String (fromString)

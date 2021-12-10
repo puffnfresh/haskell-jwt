@@ -107,4 +107,4 @@ test-suite doctests
   ghc-options:         -threaded
   build-depends:       base < 5 && >= 4.8
                      , jwt
-                     , doctest     >= 0.9.11
+                     , doctest     >= 0.20

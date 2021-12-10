@@ -110,12 +110,6 @@ import qualified Data.Aeson.KeyMap          as KeyMap
 import qualified Data.HashMap.Strict        as KeyMap
 #endif
 
--- $setup
--- The code examples in this module require GHC's `OverloadedStrings`
--- extension:
---
--- >>> :set -XOverloadedStrings
-
 {-# DEPRECATED JWTHeader "Use JOSEHeader instead. JWTHeader will be removed in 1.0" #-}
 type JWTHeader = JOSEHeader
 
@@ -290,16 +284,15 @@ encodeSigned signer header' claims' = dotted [header'', claim, signature']
 
 -- | Encode a claims set without signing it
 --
---  @
---  let
---      cs = mempty { -- mempty returns a default JWTClaimsSet
---      iss = stringOrURI "Foo"
---    , iat = numericDate 1394700934
---    , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
---  }
+--  >>> :{
+--  let cs = mempty
+--            { iss = stringOrURI . Data.Text.pack $ "Foo"
+--            , iat = numericDate 1394700934
+--            , unregisteredClaims = ClaimsMap $ Data.Map.fromList [(Data.Text.pack "http://example.com/is_root", (Bool True))]
+--            }
 --  in encodeUnsigned cs mempty
---  @
--- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjEzOTQ3MDA5MzQsImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlLCJpc3MiOiJGb28ifQ."
+--  :}
+--  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjEzOTQ3MDA5MzQsImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlLCJpc3MiOiJGb28ifQ."
 encodeUnsigned :: JWTClaimsSet -> JOSEHeader -> T.Text
 encodeUnsigned claims' header' = dotted [header'', claim, ""]
     where claim     = encodeJWT claims'
@@ -315,7 +308,7 @@ encodeUnsigned claims' header' = dotted [header'', claim, ""]
 --
 -- >>> :{
 --  let
---      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
+--      input = Data.Text.pack "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
 --      mJwt = decode input
 --  in fmap header mJwt
 -- :}
@@ -325,7 +318,7 @@ encodeUnsigned claims' header' = dotted [header'', claim, ""]
 --
 -- >>> :{
 --  let
---      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
+--      input = T.pack "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
 --      mJwt = decode input
 --  in fmap claims mJwt
 -- :}
@@ -354,9 +347,9 @@ decode input = do
 --
 -- >>> :{
 --  let
---      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
+--      input = T.pack "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
 --      mUnverifiedJwt = decode input
---      mVerifiedJwt = verify (hmacSecret "secret") =<< mUnverifiedJwt
+--      mVerifiedJwt = verify (toVerify . hmacSecret . T.pack $ "secret") =<< mUnverifiedJwt
 --  in signature =<< mVerifiedJwt
 -- :}
 -- Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
@@ -373,8 +366,8 @@ verify signer (Unverified header' claims' unverifiedSignature originalClaim) = d
 --
 -- >>> :{
 --  let
---      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
---      mJwt = decodeAndVerifySignature (hmacSecret "secret") input
+--      input = T.pack "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
+--      mJwt = decodeAndVerifySignature (toVerify . hmacSecret . T.pack $ "secret") input
 --  in signature =<< mJwt
 -- :}
 -- Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
@@ -446,6 +439,24 @@ readRsaSecret bs =
         [(PrivKeyRSA k)] -> Just k
         _                -> Nothing
 
+
+-- | Create an RSA 'PublicKey' from PEM contents
+--
+-- > readRsaPublicKey <$> BS.readFile "foo.pub"
+-- >>> :{
+--   fromJust . readRsaPublicKey . Data.ByteString.Char8.pack $ Data.List.unlines
+--       [ "-----BEGIN PUBLIC KEY-----"
+--       , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA12d4M6f3QQ9E52fVjoJ7"
+--       , "HorKvi1A83f4YL4e7TU0Lj/73+afrRBtnAdl8dIrnYHLWRdL9T4+yw7+AimQgj1R"
+--       , "zZO5FQN/qVxygkPeMKAZ53nObi2NyBbQYmRrBjx7rOz7UddI5qo/ApTWNrSBjDKK"
+--       , "1splbuO2BoTrsHlsSoJDWps/5SwpEF4GGkn5c4nZRnpnayUZqolp+HwDK2Dys9MO"
+--       , "GEIsUil1+k/76T96pBnPf6mf3X0IacTCNjJcztSaHCPWre1q45miQUGVlTmhfg/6"
+--       , "L8xmNRxz4BZdv8Nv6STfRTsn6PqiaabD0vITVsF1AapdHohmPMwe+lG5ebUJEh8p"
+--       , "HQIDAQAB"
+--       , "-----END PUBLIC KEY-----"
+--       ]
+-- :}
+-- PublicKey {public_size = 256, public_n = 27192258298637073499814714121384917708820189127612408586659742012541332375187297990620494295383503839337630959589643433993051132285579261506578281787130221431792495554016841577295914249477128682873612830754668313951998800261326356221445367133271958375798088350587817966390021082924122322621635687775325677158394714044356852489350530339926527334843762933075425870780010358838296108179073735084189560997222261973170469403371017667139302904425235800700389626242339763391588052694912470921008842459564204534000688115202764921141372629345213727775126077560633656612484128950350759146471467728292335666402631045889956718877, public_e = 65537}
 readRsaPublicKey :: BS.ByteString -> Maybe PublicKey
 readRsaPublicKey bs =
     case readPubKeyFileFromMemory bs of

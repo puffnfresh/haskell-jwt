@@ -1,4 +1,4 @@
 import Test.DocTest
 
 main :: IO ()
-main = doctest ["-isrc", "src/Web"]
+main = doctest ["-isrc", "src"]

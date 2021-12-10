@@ -4,3 +4,4 @@ extra-deps:
   - aeson-2.0.0.0
   - lens-aeson-1.1.2
   - cryptostore-0.2.1.0
+  - doctest-0.20.0
