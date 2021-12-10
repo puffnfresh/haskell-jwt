@@ -259,16 +259,16 @@ instance Semigroup.Semigroup JWTClaimsSet where
 
 -- | Encode a claims set using the given secret
 --
---  @
+--  >>> :{
 --  let
 --      cs = mempty { -- mempty returns a default JWTClaimsSet
---         iss = stringOrURI "Foo"
---       , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
+--         iss = stringOrURI . T.pack $ "Foo"
+--       , unregisteredClaims = ClaimsMap $ Map.fromList [(T.pack "http://example.com/is_root", (Bool True))]
 --      }
---      key = hmacSecret "secret-key"
+--      key = hmacSecret . T.pack $ "secret-key"
 --  in encodeSigned key mempty cs
--- @
--- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.vHQHuG3ujbnBUmEp-fSUtYxk27rLiP2hrNhxpyWhb2E"
+--  :}
+--  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.vHQHuG3ujbnBUmEp-fSUtYxk27rLiP2hrNhxpyWhb2E"
 encodeSigned :: EncodeSigner -> JOSEHeader -> JWTClaimsSet -> T.Text
 encodeSigned signer header' claims' = dotted [header'', claim, signature']
     where claim     = encodeJWT claims'

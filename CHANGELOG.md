@@ -1,3 +1,10 @@
+# 2021-12-11 0.11.0
+
+* Added support for RSA256 Public Key verification. This in turn means that some 
+methods are available to verify that are not available to encode; causing a 
+breaking API change. The `toVerify` method and the new `EncodeSigner` and `VerifySigner` 
+are the major changes.
+
 # 2021-12-02 0.10.1
 
 * Add support for Aeson 2.x
