@@ -42,6 +42,8 @@ module Web.JWT
     , tokenIssuer
     , hmacSecret
     , readRsaSecret
+    , readRsaPublicKey
+    , toVerify
     -- ** JWT structure
     , claims
     , header
@@ -58,7 +60,8 @@ module Web.JWT
     , UnverifiedJWT
     , VerifiedJWT
     , Signature
-    , Signer(..)
+    , VerifySigner(..)
+    , EncodeSigner(..)
     , JWT
     , Algorithm(..)
     , JWTClaimsSet(..)
@@ -84,8 +87,9 @@ import           Control.Applicative
 import           Control.Monad
 import           Crypto.Hash.Algorithms
 import           Crypto.MAC.HMAC
-import           Crypto.PubKey.RSA          (PrivateKey)
-import           Crypto.PubKey.RSA.PKCS15   (sign)
+import           Crypto.PubKey.RSA          (PrivateKey, PublicKey)
+import qualified Crypto.PubKey.RSA.PKCS15   as RSA
+import           Crypto.Store.X509          (readPubKeyFileFromMemory)
 import           Data.ByteArray.Encoding
 import           Data.Aeson                 hiding (decode, encode)
 import qualified Data.Aeson                 as JSON
@@ -94,7 +98,7 @@ import           Data.Maybe
 import           Data.Scientific
 import qualified Data.Semigroup             as Semigroup
 import           Data.Time.Clock            (NominalDiffTime)
-import           Data.X509                  (PrivKey (PrivKeyRSA))
+import           Data.X509                  (PrivKey (PrivKeyRSA), PubKey (PubKeyRSA))
 import           Data.X509.Memory           (readKeyFileFromMemory)
 import qualified Network.URI                as URI
 import           Prelude                    hiding (exp)
@@ -106,17 +110,15 @@ import qualified Data.Aeson.KeyMap          as KeyMap
 import qualified Data.HashMap.Strict        as KeyMap
 #endif
 
--- $setup
--- The code examples in this module require GHC's `OverloadedStrings`
--- extension:
---
--- >>> :set -XOverloadedStrings
-
 {-# DEPRECATED JWTHeader "Use JOSEHeader instead. JWTHeader will be removed in 1.0" #-}
 type JWTHeader = JOSEHeader
 
-data Signer = HMACSecret BS.ByteString
-            | RSAPrivateKey PrivateKey
+data VerifySigner = VerifyHMACSecret BS.ByteString
+                  | VerifyRSAPrivateKey PrivateKey
+                  | VerifyRSAPublicKey PublicKey
+
+data EncodeSigner = EncodeHMACSecret BS.ByteString
+                  | EncodeRSAPrivateKey PrivateKey
 
 newtype Signature = Signature T.Text deriving (Show)
 
@@ -257,22 +259,22 @@ instance Semigroup.Semigroup JWTClaimsSet where
 
 -- | Encode a claims set using the given secret
 --
---  @
+--  >>> :{
 --  let
 --      cs = mempty { -- mempty returns a default JWTClaimsSet
---         iss = stringOrURI "Foo"
---       , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
+--         iss = stringOrURI . T.pack $ "Foo"
+--       , unregisteredClaims = ClaimsMap $ Map.fromList [(T.pack "http://example.com/is_root", (Bool True))]
 --      }
---      key = hmacSecret "secret-key"
+--      key = hmacSecret . T.pack $ "secret-key"
 --  in encodeSigned key mempty cs
--- @
--- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.vHQHuG3ujbnBUmEp-fSUtYxk27rLiP2hrNhxpyWhb2E"
-encodeSigned :: Signer -> JOSEHeader -> JWTClaimsSet -> T.Text
+--  :}
+--  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.vHQHuG3ujbnBUmEp-fSUtYxk27rLiP2hrNhxpyWhb2E"
+encodeSigned :: EncodeSigner -> JOSEHeader -> JWTClaimsSet -> T.Text
 encodeSigned signer header' claims' = dotted [header'', claim, signature']
     where claim     = encodeJWT claims'
           algo      = case signer of
-                        HMACSecret _    -> HS256
-                        RSAPrivateKey _ -> RS256
+                        EncodeHMACSecret _    -> HS256
+                        EncodeRSAPrivateKey _ -> RS256
 
           header''  = encodeJWT header' {
                         typ = Just "JWT"
@@ -282,16 +284,15 @@ encodeSigned signer header' claims' = dotted [header'', claim, signature']
 
 -- | Encode a claims set without signing it
 --
---  @
---  let
---      cs = mempty { -- mempty returns a default JWTClaimsSet
---      iss = stringOrURI "Foo"
---    , iat = numericDate 1394700934
---    , unregisteredClaims = Map.fromList [("http://example.com/is_root", (Bool True))]
---  }
+--  >>> :{
+--  let cs = mempty
+--            { iss = stringOrURI . Data.Text.pack $ "Foo"
+--            , iat = numericDate 1394700934
+--            , unregisteredClaims = ClaimsMap $ Data.Map.fromList [(Data.Text.pack "http://example.com/is_root", (Bool True))]
+--            }
 --  in encodeUnsigned cs mempty
---  @
--- > "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjEzOTQ3MDA5MzQsImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlLCJpc3MiOiJGb28ifQ."
+--  :}
+--  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjEzOTQ3MDA5MzQsImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlLCJpc3MiOiJGb28ifQ."
 encodeUnsigned :: JWTClaimsSet -> JOSEHeader -> T.Text
 encodeUnsigned claims' header' = dotted [header'', claim, ""]
     where claim     = encodeJWT claims'
@@ -307,7 +308,7 @@ encodeUnsigned claims' header' = dotted [header'', claim, ""]
 --
 -- >>> :{
 --  let
---      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
+--      input = Data.Text.pack "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
 --      mJwt = decode input
 --  in fmap header mJwt
 -- :}
@@ -317,7 +318,7 @@ encodeUnsigned claims' header' = dotted [header'', claim, ""]
 --
 -- >>> :{
 --  let
---      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
+--      input = T.pack "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
 --      mJwt = decode input
 --  in fmap claims mJwt
 -- :}
@@ -346,17 +347,16 @@ decode input = do
 --
 -- >>> :{
 --  let
---      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
+--      input = T.pack "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
 --      mUnverifiedJwt = decode input
---      mVerifiedJwt = verify (hmacSecret "secret") =<< mUnverifiedJwt
+--      mVerifiedJwt = verify (toVerify . hmacSecret . T.pack $ "secret") =<< mUnverifiedJwt
 --  in signature =<< mVerifiedJwt
 -- :}
 -- Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
-verify :: Signer -> JWT UnverifiedJWT -> Maybe (JWT VerifiedJWT)
+verify :: VerifySigner -> JWT UnverifiedJWT -> Maybe (JWT VerifiedJWT)
 verify signer (Unverified header' claims' unverifiedSignature originalClaim) = do
-   let calculatedSignature = Signature $ calculateDigest signer originalClaim
-   guard (unverifiedSignature == calculatedSignature)
-   pure $ Verified header' claims' calculatedSignature
+   guard (verifyDigest signer unverifiedSignature originalClaim)
+   pure $ Verified header' claims' unverifiedSignature
 
 -- | Decode a claims set and verify that the signature matches by using the supplied secret.
 -- The algorithm is based on the supplied header value.
@@ -366,12 +366,12 @@ verify signer (Unverified header' claims' unverifiedSignature originalClaim) = d
 --
 -- >>> :{
 --  let
---      input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U" :: T.Text
---      mJwt = decodeAndVerifySignature (hmacSecret "secret") input
+--      input = T.pack "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCJ9.Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U"
+--      mJwt = decodeAndVerifySignature (toVerify . hmacSecret . T.pack $ "secret") input
 --  in signature =<< mJwt
 -- :}
 -- Just (Signature "Joh1R2dYzkRvDkqv3sygm5YyK8Gi4ShZqbhK2gxcs2U")
-decodeAndVerifySignature :: Signer -> T.Text -> Maybe (JWT VerifiedJWT)
+decodeAndVerifySignature :: VerifySigner -> T.Text -> Maybe (JWT VerifiedJWT)
 decodeAndVerifySignature signer input = verify signer =<< decode input
 
 -- | Try to extract the value for the issue claim field 'iss' from the web token in JSON form
@@ -380,14 +380,20 @@ tokenIssuer = decode >=> fmap pure claims >=> iss
 
 -- | Create a Secret using the given key.
 -- Consider using `HMACSecret` instead if your key is not already a "Data.Text".
-hmacSecret :: T.Text -> Signer
-hmacSecret = HMACSecret . TE.encodeUtf8
+hmacSecret :: T.Text -> EncodeSigner
+hmacSecret = EncodeHMACSecret . TE.encodeUtf8
+
+-- | Converts an EncodeSigner into a VerifySigner
+-- If you can encode then you can always verify; but the reverse is not always true.
+toVerify :: EncodeSigner -> VerifySigner
+toVerify (EncodeHMACSecret s) = VerifyHMACSecret s
+toVerify (EncodeRSAPrivateKey pk) = VerifyRSAPrivateKey pk
 
 -- | Create an RSAPrivateKey from PEM contents
 --
 -- Please, consider using 'readRsaSecret' instead.
-rsaKeySecret :: String -> IO (Maybe Signer)
-rsaKeySecret = pure . fmap RSAPrivateKey . readRsaSecret . C8.pack
+rsaKeySecret :: String -> IO (Maybe EncodeSigner)
+rsaKeySecret = pure . fmap EncodeRSAPrivateKey . readRsaSecret . C8.pack
 
 -- | Create an RSA 'PrivateKey' from PEM contents
 --
@@ -432,6 +438,30 @@ readRsaSecret bs =
     case readKeyFileFromMemory bs of
         [(PrivKeyRSA k)] -> Just k
         _                -> Nothing
+
+
+-- | Create an RSA 'PublicKey' from PEM contents
+--
+-- > readRsaPublicKey <$> BS.readFile "foo.pub"
+-- >>> :{
+--   fromJust . readRsaPublicKey . Data.ByteString.Char8.pack $ Data.List.unlines
+--       [ "-----BEGIN PUBLIC KEY-----"
+--       , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA12d4M6f3QQ9E52fVjoJ7"
+--       , "HorKvi1A83f4YL4e7TU0Lj/73+afrRBtnAdl8dIrnYHLWRdL9T4+yw7+AimQgj1R"
+--       , "zZO5FQN/qVxygkPeMKAZ53nObi2NyBbQYmRrBjx7rOz7UddI5qo/ApTWNrSBjDKK"
+--       , "1splbuO2BoTrsHlsSoJDWps/5SwpEF4GGkn5c4nZRnpnayUZqolp+HwDK2Dys9MO"
+--       , "GEIsUil1+k/76T96pBnPf6mf3X0IacTCNjJcztSaHCPWre1q45miQUGVlTmhfg/6"
+--       , "L8xmNRxz4BZdv8Nv6STfRTsn6PqiaabD0vITVsF1AapdHohmPMwe+lG5ebUJEh8p"
+--       , "HQIDAQAB"
+--       , "-----END PUBLIC KEY-----"
+--       ]
+-- :}
+-- PublicKey {public_size = 256, public_n = 27192258298637073499814714121384917708820189127612408586659742012541332375187297990620494295383503839337630959589643433993051132285579261506578281787130221431792495554016841577295914249477128682873612830754668313951998800261326356221445367133271958375798088350587817966390021082924122322621635687775325677158394714044356852489350530339926527334843762933075425870780010358838296108179073735084189560997222261973170469403371017667139302904425235800700389626242339763391588052694912470921008842459564204534000688115202764921141372629345213727775126077560633656612484128950350759146471467728292335666402631045889956718877, public_e = 65537}
+readRsaPublicKey :: BS.ByteString -> Maybe PublicKey
+readRsaPublicKey bs =
+    case readPubKeyFileFromMemory bs of
+          [(PubKeyRSA k)] -> Just k
+          _                -> Nothing
 
 -- | Convert the `NominalDiffTime` into an IntDate. Returns a Nothing if the
 -- argument is invalid (e.g. the NominalDiffTime must be convertible into a
@@ -485,20 +515,30 @@ dotted = T.intercalate "."
 
 -- =================================================================================
 
-calculateDigest :: Signer -> T.Text -> T.Text
-calculateDigest (HMACSecret key) msg =
+calculateDigest :: EncodeSigner -> T.Text -> T.Text
+calculateDigest (EncodeHMACSecret key) msg =
     TE.decodeUtf8 $ convertToBase Base64URLUnpadded (hmac key (TE.encodeUtf8 msg) :: HMAC SHA256)
 
-calculateDigest (RSAPrivateKey key) msg = TE.decodeUtf8
+calculateDigest (EncodeRSAPrivateKey key) msg = TE.decodeUtf8
     $ convertToBase Base64URLUnpadded
     $ sign'
     $ TE.encodeUtf8 msg
   where
     sign' :: BS.ByteString -> BS.ByteString
-    sign' bs = case sign Nothing (Just SHA256) key bs of
+    sign' bs = case RSA.sign Nothing (Just SHA256) key bs of
         Right sig -> sig
         Left  _   -> error "impossible"  -- This function can only fail with @SignatureTooLong@,
                                          -- which is impossible because we use a hash.
+
+verifyDigest :: VerifySigner -> Signature -> T.Text -> Bool
+verifyDigest (VerifyHMACSecret key) unverifiedSig msg = unverifiedSig == Signature (calculateDigest (EncodeHMACSecret key) msg)
+verifyDigest (VerifyRSAPrivateKey pk) unverifiedSig msg = unverifiedSig == Signature (calculateDigest (EncodeRSAPrivateKey pk) msg)
+verifyDigest (VerifyRSAPublicKey pk) (Signature base64Sig) msg =
+  let
+    decodedSig =
+      convertFromBase Base64URLUnpadded (TE.encodeUtf8 base64Sig)
+  in
+    either (pure False) (RSA.verify (Just SHA256) pk (TE.encodeUtf8 msg)) decodedSig
 
 -- =================================================================================
 
