@@ -11,6 +11,3 @@ From http://self-issued.info/docs/draft-ietf-oauth-json-web-token.html
 > and/or encrypted.
 
 See the [Web.JWT module](http://hackage.haskell.org/package/jwt/docs/Web-JWT.html) documentation to get started.
-
-[![Build
-Status](https://img.shields.io/bitbucket/pipelines/puffnfresh/haskell-jwt/master)](https://bitbucket.org/puffnfresh/haskell-jwt/addon/pipelines/home)
