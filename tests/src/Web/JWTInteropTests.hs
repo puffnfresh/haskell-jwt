@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                  #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
@@ -54,7 +55,11 @@ prop_encode_decode_sub = shouldBeMaybeStringOrUri "sub" sub
 prop_encode_decode_iss :: JWTClaimsSet -> Bool
 prop_encode_decode_iss = shouldBeMaybeStringOrUri "iss" iss
 
+#if MIN_VERSION_aeson(2,0,0)
+shouldBeMaybeStringOrUri :: ToJSON a => Key -> (a -> Maybe StringOrURI) -> a -> Bool
+#else
 shouldBeMaybeStringOrUri :: ToJSON a => T.Text -> (a -> Maybe StringOrURI) -> a -> Bool
+#endif
 shouldBeMaybeStringOrUri key' f claims' = 
     let json = toJSON claims' ^? key key'
     in json == (fmap (String . stringOrURIToText) $ f claims')
