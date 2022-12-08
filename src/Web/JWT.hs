@@ -268,7 +268,7 @@ instance Semigroup.Semigroup JWTClaimsSet where
 --      key = hmacSecret . T.pack $ "secret-key"
 --  in encodeSigned key mempty cs
 --  :}
---  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.vHQHuG3ujbnBUmEp-fSUtYxk27rLiP2hrNhxpyWhb2E"
+--  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.oq9ZKmaHvbupNWTulxbBuxZVIIdkZRkTbfVccteCOoU"
 encodeSigned :: EncodeSigner -> JOSEHeader -> JWTClaimsSet -> T.Text
 encodeSigned signer header' claims' = dotted [header'', claim, signature']
     where claim     = encodeJWT claims'
@@ -292,7 +292,7 @@ encodeSigned signer header' claims' = dotted [header'', claim, signature']
 --            }
 --  in encodeUnsigned cs mempty
 --  :}
---  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjEzOTQ3MDA5MzQsImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlLCJpc3MiOiJGb28ifQ."
+--  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaWF0IjoxMzk0NzAwOTM0LCJpc3MiOiJGb28ifQ."
 encodeUnsigned :: JWTClaimsSet -> JOSEHeader -> T.Text
 encodeUnsigned claims' header' = dotted [header'', claim, ""]
     where claim     = encodeJWT claims'
