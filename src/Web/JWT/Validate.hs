@@ -18,8 +18,6 @@ import Data.Typeable
 import qualified Data.Aeson as A (FromJSON(..), ToJSON(..), ToJSONKey(..), FromJSON(..), FromJSONKey(..), Value(..))
 -- containers
 import qualified Data.Map.Strict as M (Map, lookup)
--- -- hoauth2
--- import Network.OAuth.OAuth2 (OAuth2Token(..), IdToken(..))
 -- jwt
 import qualified Web.JWT as J (decode, claims, JWTClaimsSet(..), StringOrURI, NumericDate, ClaimsMap(..))
 -- scientific
