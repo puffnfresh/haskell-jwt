@@ -4,9 +4,27 @@
 {-# language GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# language OverloadedStrings #-}
+
+{-|
+Module:      Web.JWT.Validate
+License:     MIT
+Copyright:   (c) Marco Zocca 2021- <@ocramz>
+Maintainer:  Stefan Saasen <stefan@saasen.me>
+Stability:   experimental
+
+Decoding and validation functions for single fields of the JWT format.
+
+Uses the 'Validation' applicative to collect all validation failures in the @Failure@ branch.
+-}
 module Web.JWT.Validate (
+  -- * Decode and validate individual claims of the JWT token
   decValidSub, decValidExp, decValidNbf, decValidEmail, decValidAud,
-  decodeJWT, decodeValidateJWT, AuthException(..), JWTClaims, jcAud, jcExp, jcIat, jcNbf, jcSub, jcEmail, UserSub, userSub, UserEmail, userEmail, ApiAudience, apiAudience) where
+  -- * Decode multiple fields of the JWT at once
+  decodeJWT,
+  -- ** Perform validation
+  decodeValidateJWT,
+  -- * Internal types and functions
+  AuthException(..), JWTClaims, jcAud, jcExp, jcIat, jcNbf, jcSub, jcEmail, UserSub, userSub, UserEmail, userEmail, ApiAudience, apiAudience) where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import qualified Data.List.NonEmpty as NE (NonEmpty(..))
@@ -45,22 +63,29 @@ newtype UserEmail = UserEmail { userEmail :: T.Text }
 newtype ApiAudience = ApiAudience { apiAudience :: T.Text} deriving (Eq, Ord, Show, Generic, Typeable, IsString)
 instance A.ToJSON ApiAudience
 
+-- | Decode and validate the @sub@ field
 decValidSub :: J.JWTClaimsSet -> Validation (NE.NonEmpty AuthException) UserSub
 decValidSub jc = decSub (J.sub jc)
 
+-- | Decode and validate the @exp@ field
 decValidExp :: Maybe NominalDiffTime
-            -> UTCTime
+            -> UTCTime -- ^ Current time
             -> J.JWTClaimsSet
             -> Validation (NE.NonEmpty AuthException) UTCTime
 decValidExp nsecs t jc = decExp (J.exp jc) `bindValidation` validateExp nsecs t
 
-decValidNbf :: UTCTime -> J.JWTClaimsSet -> Validation (NE.NonEmpty AuthException) UTCTime
+-- | Decode and validate the @nbf@ field
+decValidNbf :: UTCTime -- ^ Current time
+            -> J.JWTClaimsSet -> Validation (NE.NonEmpty AuthException) UTCTime
 decValidNbf t jc = decNbf (J.nbf jc) `bindValidation` validateNbf t
 
-decValidEmail :: J.ClaimsMap -> Validation (NE.NonEmpty AuthException) UserEmail
-decValidEmail jc = decEmail (J.unClaimsMap jc)
+-- | Decode and validate the @email@ field
+decValidEmail :: J.JWTClaimsSet -> Validation (NE.NonEmpty AuthException) UserEmail
+decValidEmail jc = decEmail (J.unClaimsMap $ J.unregisteredClaims jc)
 
-decValidAud :: ApiAudience -> J.JWTClaimsSet -> Validation (NE.NonEmpty AuthException) T.Text
+-- | Decode and validate the @aud@ field
+decValidAud :: ApiAudience -- ^ intended token audience. The meaning of this field depends on the OAuth identity provider.
+            -> J.JWTClaimsSet -> Validation (NE.NonEmpty AuthException) T.Text
 decValidAud a jc = decAud (J.aud jc) `bindValidation` validateAud a
 
 -- | NB Validation is not a monad though
@@ -84,7 +109,7 @@ data JWTClaims =
 
 -- | Decode and validate the 'aud', 'exp' and 'nbf' fields of the JWT
 decodeValidateJWT :: MonadIO f =>
-                     ApiAudience -- ^ intended token audience (its meaning depends on the OAuth identity provider )
+                     ApiAudience -- ^ intended token audience. The meaning of this field depends on the OAuth identity provider.
                   -> Maybe NominalDiffTime -- ^ buffer period to allow for API roundtrip delays (defaults to 0 if Nothing)
                   -> T.Text -- ^ JWT-encoded string, e.g. the contents of the id_token field
                   -> f (Either (NE.NonEmpty AuthException) JWTClaims)
@@ -135,8 +160,8 @@ validateAud aa@(ApiAudience a) audt
   | a == audt = Success audt
   | otherwise = failure $ AEAudienceNotFound aa
 
--- | Ensure all fields are present
-decodeJWT :: T.Text
+-- | Ensure all fields are present 
+decodeJWT :: T.Text -- ^ JWT-encoded string, e.g. the contents of the id_token field
           -> Validation (NE.NonEmpty AuthException) JWTClaims
 decodeJWT jwts = case J.claims <$> J.decode jwts of
   Nothing -> failure $ AEMalformedJWT jwts

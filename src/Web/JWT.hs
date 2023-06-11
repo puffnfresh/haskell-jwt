@@ -16,12 +16,13 @@ Stability:   experimental
 This implementation of JWT is based on <https://tools.ietf.org/html/rfc7519>
 but currently only implements the minimum required to work with the Atlassian Connect framework and GitHub App
 
+The "Web.JWT.Validate" provides some token validation functions (e.g. for the @exp@ and @nbf@ fields).
+
 Known limitations:
 
    * Only HMAC SHA-256 and RSA SHA-256 algorithms are currently a supported signature algorithm
 
-   * There is currently no verification of time related information
-   ('exp', 'nbf', 'iat').
+   * There is currently no verification of the 'iat' field.
 
    * Registered claims are not validated
 -}
