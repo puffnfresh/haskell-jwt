@@ -16,7 +16,7 @@ Stability:   experimental
 This implementation of JWT is based on <https://tools.ietf.org/html/rfc7519>
 but currently only implements the minimum required to work with the Atlassian Connect framework and GitHub App
 
-The "Web.JWT.Validate" provides some token validation functions (e.g. for the @exp@ and @nbf@ fields).
+The "Web.JWT.Validate" module provides some token validation functions (e.g. for the @exp@ and @nbf@ fields).
 
 Known limitations:
 
