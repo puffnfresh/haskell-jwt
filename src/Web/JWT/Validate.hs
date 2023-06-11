@@ -4,7 +4,9 @@
 {-# language GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# language OverloadedStrings #-}
-module Web.JWT.Validate (decodeJWT, decodeValidateJWT, AuthException(..), JWTClaims, jcAud, jcExp, jcIat, jcNbf, jcSub, jcEmail, UserSub, userSub, UserEmail, userEmail, ApiAudience, apiAudience) where
+module Web.JWT.Validate (
+  decValidSub, decValidExp, decValidNbf, decValidEmail, decValidAud,
+  decodeJWT, decodeValidateJWT, AuthException(..), JWTClaims, jcAud, jcExp, jcIat, jcNbf, jcSub, jcEmail, UserSub, userSub, UserEmail, userEmail, ApiAudience, apiAudience) where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import qualified Data.List.NonEmpty as NE (NonEmpty(..))
@@ -42,6 +44,31 @@ newtype UserEmail = UserEmail { userEmail :: T.Text }
 -- | intended audience of the token (== API key ID )
 newtype ApiAudience = ApiAudience { apiAudience :: T.Text} deriving (Eq, Ord, Show, Generic, Typeable, IsString)
 instance A.ToJSON ApiAudience
+
+decValidSub :: J.JWTClaimsSet -> Validation (NE.NonEmpty AuthException) UserSub
+decValidSub jc = decSub (J.sub jc)
+
+decValidExp :: Maybe NominalDiffTime
+            -> UTCTime
+            -> J.JWTClaimsSet
+            -> Validation (NE.NonEmpty AuthException) UTCTime
+decValidExp nsecs t jc = decExp (J.exp jc) `bindValidation` validateExp nsecs t
+
+decValidNbf :: UTCTime -> J.JWTClaimsSet -> Validation (NE.NonEmpty AuthException) UTCTime
+decValidNbf t jc = decNbf (J.nbf jc) `bindValidation` validateNbf t
+
+decValidEmail :: J.ClaimsMap -> Validation (NE.NonEmpty AuthException) UserEmail
+decValidEmail jc = decEmail (J.unClaimsMap jc)
+
+decValidAud :: ApiAudience -> J.JWTClaimsSet -> Validation (NE.NonEmpty AuthException) T.Text
+decValidAud a jc = decAud (J.aud jc) `bindValidation` validateAud a
+
+-- | NB Validation is not a monad though
+bindValidation :: Validation e a -> (a -> Validation e b) -> Validation e b
+bindValidation v f = case v of
+  Failure e -> Failure e
+  Success a -> f a
+
 
 -- | Decoded claims from the JWT token, valid (at least) for the Google OpenID implementation as of February 2021
 --
