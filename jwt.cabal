@@ -31,6 +31,7 @@ source-repository head
 
 library
   exposed-modules:     Web.JWT
+                       Web.JWT.Validate
   other-modules:       Data.Text.Extended, Data.ByteString.Extended
   build-depends:       base >= 4.8 && < 5
                      , cryptonite               >= 0.6
@@ -47,6 +48,7 @@ library
                      , vector                   >= 0.7.1
                      , semigroups               >= 0.15.4
                      , network-uri
+                     , validation-selective
                      , x509
                      , x509-store
 
