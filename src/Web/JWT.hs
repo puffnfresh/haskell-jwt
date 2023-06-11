@@ -25,6 +25,15 @@ Known limitations:
    * There is currently no verification of the 'iat' field.
 
    * Registered claims are not validated
+
+== Quickstart
+
+1) Decode a JWT-encoded string with 'decode'
+
+2) Extract the claims from the 'JWT' object with 'claims'
+
+3) Validate the fields with one of the functions from "Web.JWT.Validate".
+
 -}
 module Web.JWT
     (
