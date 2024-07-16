@@ -40,4 +40,5 @@ jobs:
       # getting the flag specified is the only blocker to a successful build.
       run: cabal build --enable-tests --enable-benchmarks all --constraint="cryptostore +use_crypton"
     - name: Run tests
-      run: cabal test test:testsuite
+      # as above
+      run: cabal test test:testsuite --constraint="cryptostore +use_crypton"
