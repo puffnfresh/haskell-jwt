@@ -54,9 +54,9 @@ prop_encode_decode_sub = shouldBeMaybeStringOrUri "sub" sub
 prop_encode_decode_iss :: JWTClaimsSet -> Bool
 prop_encode_decode_iss = shouldBeMaybeStringOrUri "iss" iss
 
-shouldBeMaybeStringOrUri :: ToJSON a => T.Text -> (a -> Maybe StringOrURI) -> a -> Bool
-shouldBeMaybeStringOrUri key' f claims' = 
-    let json = toJSON claims' ^? key key'
+shouldBeMaybeStringOrUri :: ToJSON a => String -> (a -> Maybe StringOrURI) -> a -> Bool
+shouldBeMaybeStringOrUri key' f claims' =
+    let json = toJSON claims' ^? key (fromString key')
     in json == (fmap (String . stringOrURIToText) $ f claims')
 
 prop_encode_decode_aud :: JWTClaimsSet -> Bool
