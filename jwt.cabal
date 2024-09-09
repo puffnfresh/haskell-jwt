@@ -12,7 +12,7 @@ homepage:            https://github.com/puffnfresh/haskell-jwt
 bug-reports:         https://github.com/puffnfresh/haskell-jwt/issues
 category:            Web
 build-type:          Simple
-cabal-version:       >=1.16
+cabal-version:       1.16
 description:
 
     JSON Web Token (JWT) is a compact URL-safe means of representing claims to be transferred between two parties.
@@ -29,12 +29,17 @@ source-repository head
     type: git
     location: https://github.com/puffnfresh/haskell-jwt.git
 
+-- Drop this when cryptostore does
+flag use_crypton
+  description: Use crypton instead of cryptonite
+  manual: True
+  default: False
+
 library
   exposed-modules:     Web.JWT
   other-modules:       Data.Text.Extended, Data.ByteString.Extended
   build-depends:       base >= 4.8 && < 5
-                     , cryptonite               >= 0.6
-                     , cryptostore              >= 0.2
+                     , cryptostore              >= 0.3.0.1
                      , memory                   >= 0.8
                      , bytestring               >= 0.10
                      , text                     >= 0.11
@@ -47,6 +52,12 @@ library
                      , vector                   >= 0.7.1
                      , semigroups               >= 0.15.4
                      , network-uri
+  if flag(use_crypton)
+    build-depends:     crypton >= 0.31
+                     , crypton-x509
+                     , crypton-x509-store
+  else
+    build-depends:     cryptonite >= 0.6
                      , x509
                      , x509-store
 
@@ -81,7 +92,6 @@ test-suite testsuite
                      , lens
                      , HUnit
                      , QuickCheck >= 2.4.0.1
-                     , cryptonite
                      , cryptostore
                      , memory
                      , bytestring               >= 0.10
@@ -95,6 +105,12 @@ test-suite testsuite
                      , vector                   >= 0.7.1
                      , semigroups               >= 0.15.4
                      , network-uri
+  if flag(use_crypton)
+    build-depends:     crypton
+                     , crypton-x509
+                     , crypton-x509-store
+  else
+    build-depends:     cryptonite
                      , x509
                      , x509-store
 

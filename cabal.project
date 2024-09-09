@@ -1,0 +1,5 @@
+packages: .
+flags: +use_crypton
+
+package cryptostore
+  flags: +use_crypton
