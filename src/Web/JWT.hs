@@ -161,12 +161,16 @@ type IntDate = NumericDate
 
 -- | A JSON numeric value representing the number of seconds from
 -- 1970-01-01T0:0:0Z UTC until the specified UTC date/time.
-newtype NumericDate = NumericDate Integer deriving (Show, Eq, Ord)
+--
+-- Per RFC 7519 section 2, may be fractional.
+newtype NumericDate = NumericDate Scientific deriving (Show, Eq, Ord)
 
-
--- | Return the seconds since 1970-01-01T0:0:0Z UTC for the given 'IntDate'
+-- | Convert the given 'NumericDate' into seconds since 1970-01-01T0:0:0Z.
+--
+-- >>> secondsSinceEpoch $ NumericDate 1777605333.111222
+-- 1777605333.111222s
 secondsSinceEpoch :: NumericDate -> NominalDiffTime
-secondsSinceEpoch (NumericDate s) = fromInteger s
+secondsSinceEpoch (NumericDate s) = realToFrac s
 
 -- | A JSON string value, with the additional requirement that while
 -- arbitrary string values MAY be used, any value containing a ":"
@@ -471,11 +475,10 @@ intDate :: NominalDiffTime -> Maybe IntDate
 intDate = numericDate
 
 -- | Convert the `NominalDiffTime` into an NumericDate. Returns a Nothing if the
--- argument is invalid (e.g. the NominalDiffTime must be convertible into a
--- positive Integer representing the seconds since epoch).
+-- argument is invalid (e.g. negative NominalDiffTime).
 numericDate :: NominalDiffTime -> Maybe NumericDate
 numericDate i | i < 0 = Nothing
-numericDate i         = Just $ NumericDate $ round i
+numericDate i         = Just $ NumericDate $ normalize $ realToFrac i
 
 -- | Convert a `T.Text` into a 'StringOrURI`. Returns a Nothing if the
 -- String cannot be converted (e.g. if the String contains a ':' but is
@@ -617,11 +620,29 @@ instance ToJSON JOSEHeader where
             ]
 
 instance ToJSON NumericDate where
-    toJSON (NumericDate i) = Number $ scientific (fromIntegral i) 0
+    toJSON (NumericDate i) = Number i
 
+-- | Per the RFC, supports fractional durations.
+--
+-- At the same time, exp=1e999999999 should not blow up programs.
+--
+-- >>> eitherDecode "1777605333" :: Either String NumericDate
+-- Right (NumericDate 1.777605333e9)
+--
+-- >>> eitherDecode "1777605333.005" :: Either String NumericDate
+-- Right (NumericDate 1.777605333005e9)
+--
+-- >>> eitherDecode "1777605333e9999" :: Either String NumericDate
+-- Left "Error in $: NumericDate too far into future"
 instance FromJSON NumericDate where
-    parseJSON (Number x) = return $ NumericDate $ coefficient x
-    parseJSON _          = mzero
+    parseJSON = withScientific "exp claim"
+              $ (. normalize)
+              $ \x -> do
+      -- this is withBoundedScientific; prevents huge exponent DoS.
+      -- 10'000 nominal years is ~3.1e11 seconds.
+      when (base10Exponent x > 12) $
+        fail "NumericDate too far into future"
+      return $ NumericDate x
 
 instance ToJSON Algorithm where
     toJSON HS256 = String ("HS256"::T.Text)
@@ -640,6 +661,9 @@ instance FromJSON StringOrURI where
     parseJSON (String s) | URI.isURI $ T.unpack s = return $ U $ fromMaybe URI.nullURI $ URI.parseURI $ T.unpack s
     parseJSON (String s)                          = return $ S s
     parseJSON _                                   = mzero
+
+-- $setup
+-- >>> :seti -XOverloadedStrings
 
 -- $docDecoding
 -- There are three use cases supported by the set of decoding/verification
