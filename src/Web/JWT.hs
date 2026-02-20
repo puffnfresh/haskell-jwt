@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP                #-}
 {-# LANGUAGE EmptyDataDecls     #-}
 {-# LANGUAGE FlexibleInstances  #-}
 {-# LANGUAGE GADTs              #-}
@@ -93,6 +92,8 @@ import           Crypto.Store.X509          (readPubKeyFileFromMemory)
 import           Data.ByteArray.Encoding
 import           Data.Aeson                 hiding (decode, encode)
 import qualified Data.Aeson                 as JSON
+import qualified Data.Aeson.Key             as Key
+import qualified Data.Aeson.KeyMap          as KeyMap
 import qualified Data.Map                   as Map
 import           Data.Maybe
 import           Data.Scientific
@@ -102,13 +103,6 @@ import           Data.X509                  (PrivKey (PrivKeyRSA), PubKey (PubKe
 import           Data.X509.Memory           (readKeyFileFromMemory)
 import qualified Network.URI                as URI
 import           Prelude                    hiding (exp)
-
-#if MIN_VERSION_aeson(2,0,0)
-import qualified Data.Aeson.Key             as Key
-import qualified Data.Aeson.KeyMap          as KeyMap
-#else
-import qualified Data.HashMap.Strict        as KeyMap
-#endif
 
 {-# DEPRECATED JWTHeader "Use JOSEHeader instead. JWTHeader will be removed in 1.0" #-}
 type JWTHeader = JOSEHeader
@@ -268,7 +262,7 @@ instance Semigroup.Semigroup JWTClaimsSet where
 --      key = hmacSecret . T.pack $ "secret-key"
 --  in encodeSigned key mempty cs
 --  :}
---  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZSwiaXNzIjoiRm9vIn0.vHQHuG3ujbnBUmEp-fSUtYxk27rLiP2hrNhxpyWhb2E"
+--  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJGb28iLCJodHRwOi8vZXhhbXBsZS5jb20vaXNfcm9vdCI6dHJ1ZX0.9uim_nuzFyiZ3qqJrzZRieGTOLRNOYlYvmhrqg8KYfQ"
 encodeSigned :: EncodeSigner -> JOSEHeader -> JWTClaimsSet -> T.Text
 encodeSigned signer header' claims' = dotted [header'', claim, signature']
     where claim     = encodeJWT claims'
@@ -292,7 +286,7 @@ encodeSigned signer header' claims' = dotted [header'', claim, signature']
 --            }
 --  in encodeUnsigned cs mempty
 --  :}
---  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjEzOTQ3MDA5MzQsImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlLCJpc3MiOiJGb28ifQ."
+--  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJGb28iLCJpYXQiOjEzOTQ3MDA5MzQsImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ."
 encodeUnsigned :: JWTClaimsSet -> JOSEHeader -> T.Text
 encodeUnsigned claims' header' = dotted [header'', claim, ""]
     where claim     = encodeJWT claims'
@@ -555,13 +549,7 @@ instance Semigroup.Semigroup ClaimsMap where
     ClaimsMap $ a Semigroup.<> b
 
 fromHashMap :: Object -> ClaimsMap
-fromHashMap = ClaimsMap . Map.fromList . map (first toText) . KeyMap.toList
-  where
-#if MIN_VERSION_aeson(2,0,0)
-    toText = Key.toText
-#else
-    toText = id
-#endif
+fromHashMap = ClaimsMap . Map.fromList . map (first Key.toText) . KeyMap.toList
 
 removeRegisteredClaims :: ClaimsMap -> ClaimsMap
 removeRegisteredClaims (ClaimsMap input) = ClaimsMap $ Map.differenceWithKey (\_ _ _ -> Nothing) input registeredClaims
@@ -577,13 +565,19 @@ instance ToJSON JWTClaimsSet where
                 , fmap ("nbf" .=) nbf
                 , fmap ("iat" .=) iat
                 , fmap ("jti" .=) jti
-            ] ++ map (first fromText) (Map.toList $ unClaimsMap $ removeRegisteredClaims unregisteredClaims)
-      where
-#if MIN_VERSION_aeson(2,0,0)
-        fromText = Key.fromText
-#else
-        fromText = id
-#endif
+            ] ++ map (first Key.fromText)
+                     (Map.toList $ unClaimsMap $ removeRegisteredClaims unregisteredClaims)
+    -- See [NOTE] Encoding VS Value, and json objects keys ordering
+    toEncoding JWTClaimsSet{..} = pairs . mconcat $ catMaybes [
+                  fmap ("iss" .=) iss
+                , fmap ("sub" .=) sub
+                , either ("aud" .=) ("aud" .=) <$> aud
+                , fmap ("exp" .=) exp
+                , fmap ("nbf" .=) nbf
+                , fmap ("iat" .=) iat
+                , fmap ("jti" .=) jti
+            ] ++ map (uncurry (.=) . first Key.fromText)
+                     (Map.toList $ unClaimsMap $ removeRegisteredClaims unregisteredClaims)
 
 instance FromJSON JWTClaimsSet where
         parseJSON = withObject "JWTClaimsSet"
@@ -615,6 +609,34 @@ instance ToJSON JOSEHeader where
                 , fmap ("alg" .=) alg
                 , fmap ("kid" .=) kid
             ]
+    -- See [NOTE] Encoding VS Value, and json objects keys ordering
+    toEncoding JOSEHeader{..} = pairs . mconcat . catMaybes $ [
+                  fmap ("typ" .=) typ
+                , fmap ("cty" .=) cty
+                , fmap ("alg" .=) alg
+                , fmap ("kid" .=) kid
+            ]
+
+{- [NOTE] Encoding VS Value, and json objects keys ordering
+
+Unlike Encoding, aeson's Value may, and will, reorder keys.
+
+This can cause annoying issues, where the JWT encodings that we produce may "wobble"
+across (non-breaking) updates in dependencies (particularly, in unordered-containers).
+
+One such issue was reported at https://github.com/puffnfresh/haskell-jwt/issues/2 .
+Both encodings are technically correct and valid -- yet, this broke somebody's test
+and ate people's time.
+
+Another occurrence manifested in doctests of this very module. There, it is especially
+vexing, because doctests showcase API usage primarily (and as a bonus, double-duty as tests).
+I.e. doctests are not the place to be explicitly handling multiple valid outputs
+(the in-code "expected value" may validly be this, or that, depending on what exact versions
+of dependencies we're compiling with), all the while exemplifying how to get any JWT output
+in the first place. But, where?
+
+In ToJSON class, there's an optional toEncoding method that can stabilize the ordering.
+-}
 
 instance ToJSON NumericDate where
     toJSON (NumericDate i) = Number $ scientific (fromIntegral i) 0
