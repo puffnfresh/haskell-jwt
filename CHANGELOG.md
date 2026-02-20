@@ -1,3 +1,8 @@
+# Unreleased 0.12.0
+
+* Fix bug where fractional NumericDate's were being parsed incorrectly.
+  [#4](https://github.com/puffnfresh/haskell-jwt/issues/4).
+
 # 2021-12-11 0.11.0
 
 * Added support for RSA256 Public Key verification. This in turn means that some 
