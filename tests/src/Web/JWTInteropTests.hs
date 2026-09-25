@@ -24,6 +24,7 @@ module Web.JWTInteropTests (
 
 import           Prelude hiding (exp)
 import           Control.Lens
+import qualified Data.Aeson.Key as Key
 import           Data.Aeson.Lens
 import           Data.Aeson.Types
 import qualified Data.Map              as Map
@@ -56,7 +57,7 @@ prop_encode_decode_iss = shouldBeMaybeStringOrUri "iss" iss
 
 shouldBeMaybeStringOrUri :: ToJSON a => T.Text -> (a -> Maybe StringOrURI) -> a -> Bool
 shouldBeMaybeStringOrUri key' f claims' = 
-    let json = toJSON claims' ^? key key'
+    let json = toJSON claims' ^? key (Key.fromText key')
     in json == (fmap (String . stringOrURIToText) $ f claims')
 
 prop_encode_decode_aud :: JWTClaimsSet -> Bool

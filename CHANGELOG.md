@@ -2,6 +2,11 @@
 
 * Fix bug where fractional NumericDate's were being parsed incorrectly.
   [#4](https://github.com/puffnfresh/haskell-jwt/issues/4).
+* Pull updates in cryptostore, fixing build with crypton.
+* Stabilize ordering of keys, both in the header and in claims, resolving
+  [#2](https://github.com/puffnfresh/haskell-jwt/issues/2).
+* Fix and reenable doctests.
+* Drop support for aeson < 2.
 
 # 2021-12-11 0.11.0
 
