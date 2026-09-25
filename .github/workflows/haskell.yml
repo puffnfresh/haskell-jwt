@@ -11,24 +11,29 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    strategy:
+      fail-fast: false
+      matrix:
+        ghc-version: ['9.4.8', '9.6.6', '9.8.4', '9.10.1']
+
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-haskell@v1
+    - uses: actions/checkout@v4
+    - uses: haskell-actions/setup@v2
+      id: setup
       with:
-        ghc-version: '8.10.3'
-        cabal-version: '3.2'
+        ghc-version: ${{ matrix.ghc-version }}
+        cabal-version: 'latest'
 
     - name: Cache
-      uses: actions/cache@v1
+      uses: actions/cache@v4
       env:
         cache-name: cache-cabal
       with:
-        path: ~/.cabal
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
+        path: ${{ steps.setup.outputs.cabal-store }}
+        key: ${{ runner.os }}-ghc${{ matrix.ghc-version }}-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
         restore-keys: |
-          ${{ runner.os }}-build-${{ env.cache-name }}-
-          ${{ runner.os }}-build-
-          ${{ runner.os }}-
+          ${{ runner.os }}-ghc${{ matrix.ghc-version }}-${{ env.cache-name }}-
+          ${{ runner.os }}-ghc${{ matrix.ghc-version }}-
 
     - name: Install dependencies
       run: |
