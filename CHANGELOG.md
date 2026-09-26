@@ -1,4 +1,4 @@
-# Unreleased 0.12.0
+# 2026-09-26 0.12.0
 
 * Fix bug where fractional NumericDate's were being parsed incorrectly.
   [#4](https://github.com/puffnfresh/haskell-jwt/issues/4).
