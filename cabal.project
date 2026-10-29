@@ -1,5 +1,5 @@
 packages: .
-flags: +use_crypton
+flags: +use_crypton +use_ram
 
 package cryptostore
   flags: +use_crypton

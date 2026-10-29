@@ -34,13 +34,15 @@ flag use_crypton
   description: Use crypton instead of cryptonite
   manual: True
   default: False
+flag use_ram
+  description: Use ram instead of memory
+  manual: True
+  default: False
 
 library
   exposed-modules:     Web.JWT
   other-modules:       Data.Text.Extended, Data.ByteString.Extended
   build-depends:       base >= 4.8 && < 5
-                     , cryptostore              >= 0.5.0.0 && < 0.6
-                     , memory                   >= 0.8     && < 0.19
                      , bytestring               >= 0.10    && < 0.13
                      , text                     >= 0.11    && < 2.2
                      , aeson                    >= 2       && < 2.4
@@ -52,10 +54,22 @@ library
                      , vector                   >= 0.7.1   && < 0.14
                      , semigroups               >= 0.15.4  && < 0.21
                      , network-uri              >= 2.6     && < 2.7
+
+  if flag(use_crypton) && flag(use_ram)
+    build-depends:     cryptostore              >= 0.6     && < 0.7
+                     , ram                      >= 0.20.1  && <0.23
+  else
+    build-depends:     cryptostore              >= 0.5.0.0 && < 0.6
+                     , memory                   >= 0.8     && < 0.19
+
   if flag(use_crypton)
-    build-depends:     crypton >= 0.31 && < 2.2
-                     , crypton-x509             < 1.10
-                     , crypton-x509-store       < 1.10
+    if flag(use_ram)
+      build-depends:   crypton                  >= 1.1     && < 2
+    else
+      build-depends:   crypton                  >= 0.31    && < 1.1
+
+    build-depends:     crypton-x509             < 1.11
+                     , crypton-x509-store       < 1.11
   else
     build-depends:     cryptonite >= 0.6 && < 0.31
                      , x509                     < 1.8
@@ -93,7 +107,6 @@ test-suite testsuite
                      , HUnit
                      , QuickCheck >= 2.4.0.1
                      , cryptostore
-                     , memory
                      , bytestring               >= 0.10
                      , text                     >= 0.11
                      , aeson                    >= 2
@@ -105,6 +118,11 @@ test-suite testsuite
                      , vector                   >= 0.7.1
                      , semigroups               >= 0.15.4
                      , network-uri
+  if flag(use_crypton) && flag(use_ram)
+    build-depends:   ram
+  else
+    build-depends:   memory
+
   if flag(use_crypton)
     build-depends:     crypton
                      , crypton-x509
